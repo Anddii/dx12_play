@@ -1,17 +1,33 @@
 #include "d3d12_motor.h"
 
+// Init Pipeline
 // 1. Enable Debug layer
 // 2. Create The Device (Device is used to check feature support, and create all other  Direct3D  interface  objects  like  resources,  views,  and  command  lists)
 // 3. Describe and create the command queue (The  CPU  submits  commands  to  the  queue  through the Direct3D API using command lists)
-// 4. Describe and create the swap chain.
-// 5. Create descriptor heaps. A descriptor heap can be thought of as an array of descriptors. Where each descriptor fully describes an object to the GPU.
+// 4. Describe and create the swap chain
+// 5. Create descriptor heaps. A descriptor heap can be thought of as an array of descriptors. Where each descriptor fully describes an object to the GPU
     // 5.1 Describe and create a render target view (RTV) descriptor heap.
-// 6. Create frame resources.
-    // 6.1 Create a RTV for each frame.
-// 7. Create A command allocator, manages the underlying storage for command listsand bundles.
+// 6. Create frame resources
+    // 6.1 Create a RTV for each frame
+// 7. Create A command allocator, manages the underlying storage for command listsand bundles
+// 8. Create A bundle allocator
 
 // Load Assets
-// 8. Create an empty root signature.  A graphics root signature defines what resources are bound to the graphics pipeline.
+// 9. Create an empty root signature.  A graphics root signature defines what resources are bound to the graphics pipeline
+// 10. Create the pipeline state, which includes compiling and loading shaders
+    // 10.1 Compile and load shaders
+    // 10.2 Define the vertex input layout
+    // 10.3 Describe and create the graphics pipeline state object (PSO)
+// 11. Create the command list
+// 12. Create the vertex buffer
+    // 12.1 Define the geometry for a triangle
+    // 12.2 Create Upload heap for the CPU to write
+    // 12.3 Create Default heap, the actual buffer resource
+    // 12.4 Copy the triangle data to the vertex buffer. Copy data from upload heap to Default heap
+    // 12.5 Initialize the vertex buffer view.
+// 13. Create and record the bundle
+// 14. Create synchronization objectsand wait until assets have been uploaded to the GPU
+    
 
 void D3D12Motor::LoadPipeline(HWND hwnd) {
 #if defined(_DEBUG)
@@ -67,7 +83,7 @@ void D3D12Motor::LoadPipeline(HWND hwnd) {
             ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[n])));
         }
     }
-    
+    // 8. A bundle allocator.
     ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_BUNDLE, IID_PPV_ARGS(&m_bundleAllocator)));
 }
 
@@ -122,7 +138,7 @@ void D3D12Motor::CreateSwapChain(HWND hwnd) {
 }
 
 void D3D12Motor::LoadAssets() {
-    // Create an empty root signature.
+    // 9. Create an empty root signature.
     {
         CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
         rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
@@ -133,7 +149,7 @@ void D3D12Motor::LoadAssets() {
         ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
     }
 
-    // Create the pipeline state, which includes compiling and loading shaders.
+    // 10. Create the pipeline state, which includes compiling and loading shaders.
     {
         ComPtr<ID3DBlob> vertexShader;
         ComPtr<ID3DBlob> pixelShader;
@@ -145,17 +161,18 @@ void D3D12Motor::LoadAssets() {
         UINT compileFlags = 0;
 #endif
 
+        // 10.1 Compile and load shaders.
         ThrowIfFailed(D3DCompileFromFile(L"shaders.hlsl", nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr));
         ThrowIfFailed(D3DCompileFromFile(L"shaders.hlsl", nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, nullptr));
 
-        // Define the vertex input layout.
+        // 10.2 Define the vertex input layout.
         D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
         {
             { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
             { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
         };
 
-        // Describe and create the graphics pipeline state object (PSO).
+        // 10.3 Describe and create the graphics pipeline state object (PSO).
         D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
         psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
         psoDesc.pRootSignature = m_rootSignature.Get();
@@ -173,25 +190,21 @@ void D3D12Motor::LoadAssets() {
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineState)));
     }
 
-    // Create the command list.
+    // 11. Create the command list
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
 
-    // Create the vertex buffer.
+    // 12. Create the vertex buffer
     {
-        // Define the geometry for a triangle.
+        // 12.1 Define the geometry for a triangle
         Vertex triangleVertices[] =
         {
             { { 0.0f, 0.25f * m_aspectRatio, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
             { { 0.25f, -0.25f * m_aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
             { { -0.25f, -0.25f * m_aspectRatio, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
         };
-
         const UINT vertexBufferSize = sizeof(triangleVertices);
 
-        // Note: using upload heaps to transfer static data like vert buffers is not 
-        // recommended. Every time the GPU needs it, the upload heap will be marshalled 
-        // over. Please read up on Default Heap usage. An upload heap is used here for 
-        // code simplicity and because there are very few verts to actually transfer.
+        // 12.2 Create Upload heap 
         auto desc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
         ThrowIfFailed(m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
@@ -201,7 +214,7 @@ void D3D12Motor::LoadAssets() {
             nullptr,
             IID_PPV_ARGS(&m_vertexBuffer)));
 
-        // Create the actual default buffer resource. 
+        // 12.3 Create Default heap, the actual buffer resource. 
         ThrowIfFailed(m_device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
             D3D12_HEAP_FLAG_NONE,
@@ -210,8 +223,7 @@ void D3D12Motor::LoadAssets() {
             nullptr,
             IID_PPV_ARGS(&m_defaultBuffer)));
 
-        // Copy the triangle data to the vertex buffer.
-        // Copy data from upload heap to Default heaP
+        // 12.4 Copy the triangle data to the vertex buffer. Copy data from upload heap to Default heap
         D3D12_SUBRESOURCE_DATA subResourceData = {};
         subResourceData.pData = triangleVertices;
         subResourceData.RowPitch = vertexBufferSize;
@@ -220,19 +232,18 @@ void D3D12Motor::LoadAssets() {
         UpdateSubresources(m_commandList.Get(), m_defaultBuffer.Get(), m_vertexBuffer.Get(), 0, 0, 1, &subResourceData);
         m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_defaultBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ));
 
-        // Command lists are created in the recording state, but there is nothing
-        // to record yet. The main loop expects it to be closed, so close it now.
+        // Close the Commandlist and Execute (Copy data from upload heap to Default heap)
         ThrowIfFailed(m_commandList->Close());
         ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
         m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
-        // Initialize the vertex buffer view.
+        // 12.5 Initialize the vertex buffer view.
         m_vertexBufferView.BufferLocation = m_defaultBuffer->GetGPUVirtualAddress();
         m_vertexBufferView.StrideInBytes = sizeof(Vertex);
         m_vertexBufferView.SizeInBytes = vertexBufferSize;
     }
 
-    // Create and record the bundle.
+    // 13 Create and record the bundle
     {
         ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_BUNDLE, m_bundleAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_bundle)));
         m_bundle->SetGraphicsRootSignature(m_rootSignature.Get());
