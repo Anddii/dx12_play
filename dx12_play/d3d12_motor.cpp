@@ -55,7 +55,33 @@ void D3D12Motor::LoadPipeline(HWND hwnd) {
     ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
 
     // 4. Describe and create the swap chain.
-    CreateSwapChain(hwnd);
+    // Define Viewport
+    UpdateViewport(hwnd);
+
+    ComPtr<IDXGIFactory4> factory;
+    ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&factory)));
+
+    DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
+    swapChainDesc.BufferCount = FrameCount;
+    swapChainDesc.BufferDesc.Width = (UINT)m_viewport.Width;
+    swapChainDesc.BufferDesc.Height = (UINT)m_viewport.Height;
+    swapChainDesc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    swapChainDesc.OutputWindow = hwnd;
+    swapChainDesc.SampleDesc.Count = 1;
+    swapChainDesc.Windowed = TRUE;
+
+    ComPtr<IDXGISwapChain> swapChain;
+    ThrowIfFailed(factory->CreateSwapChain(
+        m_commandQueue.Get(),        // Swap chain needs the queue so that it can force a flush on it.
+        &swapChainDesc,
+        &swapChain
+    ));
+
+    ThrowIfFailed(swapChain.As(&m_swapChain));
+
+    m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
     // 5. Create descriptor heaps. A descriptor heap can be thought of as an array of descriptors. Where each descriptor fully describes an object to the GPU.
     {
@@ -85,56 +111,6 @@ void D3D12Motor::LoadPipeline(HWND hwnd) {
     }
     // 8. A bundle allocator.
     ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_BUNDLE, IID_PPV_ARGS(&m_bundleAllocator)));
-}
-
-void D3D12Motor::CreateSwapChain(HWND hwnd) {
-
-    // Define Viewport
-    RECT rect;
-    GetClientRect(hwnd, &rect);
-    float fpWidth;
-    float fpHeight;
-    fpWidth = float(rect.right - rect.left);
-    fpHeight = float(rect.bottom - rect.top);
-
-    m_aspectRatio = fpWidth / fpHeight;
-
-    m_viewport.TopLeftX = 0;
-    m_viewport.TopLeftY = 0;
-    m_viewport.Width = 1 * fpWidth;
-    m_viewport.Height = 1 * fpHeight;
-    m_viewport.MinDepth = 0;
-    m_viewport.MaxDepth = 1;
-
-    m_scissorRect.left = static_cast<LONG>(m_viewport.TopLeftX);
-    m_scissorRect.right = static_cast<LONG>(m_viewport.TopLeftX + m_viewport.Width);
-    m_scissorRect.top = static_cast<LONG>(m_viewport.TopLeftY);
-    m_scissorRect.bottom = static_cast<LONG>(m_viewport.TopLeftY + m_viewport.Height);
-
-    ComPtr<IDXGIFactory4> factory;
-    ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&factory)));
-
-    DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
-    swapChainDesc.BufferCount = FrameCount;
-    swapChainDesc.BufferDesc.Width = (UINT)fpWidth;
-    swapChainDesc.BufferDesc.Height = (UINT)fpHeight;
-    swapChainDesc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-    swapChainDesc.OutputWindow = hwnd;
-    swapChainDesc.SampleDesc.Count = 1;
-    swapChainDesc.Windowed = TRUE;
-
-    ComPtr<IDXGISwapChain> swapChain;
-    ThrowIfFailed(factory->CreateSwapChain(
-        m_commandQueue.Get(),        // Swap chain needs the queue so that it can force a flush on it.
-        &swapChainDesc,
-        &swapChain
-    ));
-
-    ThrowIfFailed(swapChain.As(&m_swapChain));
-
-    m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 }
 
 void D3D12Motor::LoadAssets() {
@@ -243,7 +219,7 @@ void D3D12Motor::LoadAssets() {
         m_vertexBufferView.SizeInBytes = vertexBufferSize;
     }
 
-    // 13 Create and record the bundle
+    // 13. Create and record the bundle
     {
         ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_BUNDLE, m_bundleAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_bundle)));
         m_bundle->SetGraphicsRootSignature(m_rootSignature.Get());
@@ -355,6 +331,59 @@ void D3D12Motor::MoveToNextFrame()
 
     // Set the fence value for the next frame.
     m_fenceValues[m_frameIndex] = currentFenceValue + 1;
+}
+
+void D3D12Motor::UpdateViewport(HWND hwnd) {
+    // Define Viewport
+    RECT rect;
+    GetClientRect(hwnd, &rect);
+    float fpWidth;
+    float fpHeight;
+    fpWidth = float(rect.right - rect.left);
+    fpHeight = float(rect.bottom - rect.top);
+
+    m_aspectRatio = fpWidth / fpHeight;
+
+    m_viewport.TopLeftX = 0;
+    m_viewport.TopLeftY = 0;
+    m_viewport.Width = 1 * fpWidth;
+    m_viewport.Height = 1 * fpHeight;
+    m_viewport.MinDepth = 0;
+    m_viewport.MaxDepth = 1;
+
+    m_scissorRect.left = static_cast<LONG>(m_viewport.TopLeftX);
+    m_scissorRect.right = static_cast<LONG>(m_viewport.TopLeftX + m_viewport.Width);
+    m_scissorRect.top = static_cast<LONG>(m_viewport.TopLeftY);
+    m_scissorRect.bottom = static_cast<LONG>(m_viewport.TopLeftY + m_viewport.Height);
+}
+
+void D3D12Motor::OnResize(HWND hwnd) {
+    WaitForGpu();
+
+    UpdateViewport(hwnd);
+
+    // Release Render Target Views (RTV) and reset the frame fence values to the current fence value.
+    for (int i = 0; i < FrameCount; ++i) {
+        m_renderTargets[i].Reset();
+        m_fenceValues[i] = m_fenceValues[m_frameIndex];
+    }
+
+    // Resize the swap chain to the desired dimensions.
+    DXGI_SWAP_CHAIN_DESC desc = {};
+    m_swapChain->GetDesc(&desc);
+    ThrowIfFailed(m_swapChain->ResizeBuffers(FrameCount, (UINT)m_viewport.Width, (UINT)m_viewport.Height, desc.BufferDesc.Format, desc.Flags));
+
+    // Resize Render Target Views (RTV)
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
+    for (UINT i = 0; i < FrameCount; i++)
+    {
+        ThrowIfFailed(m_swapChain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i])));
+        m_device->CreateRenderTargetView(m_renderTargets[i].Get(), nullptr, rtvHeapHandle);
+        rtvHeapHandle.Offset(1, m_rtvDescriptorSize);
+    }
+
+    // Reset the frame index to the current back buffer index.
+    m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 }
 
 void D3D12Motor::ThrowIfFailed(HRESULT hr) {

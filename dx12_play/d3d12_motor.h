@@ -62,6 +62,7 @@ private:
 	void PopulateCommandList();
 	void WaitForGpu();
 	void MoveToNextFrame();
+	void UpdateViewport(HWND hwnd);
 	void ThrowIfFailed(HRESULT hr);
 public:
 	D3D12Motor() {}
@@ -69,6 +70,6 @@ public:
 	void LoadPipeline(HWND hwnd);
 	void LoadAssets();
 	void OnRender();
-	void CreateSwapChain(HWND hwnd);
+	void OnResize(HWND hwnd);
 };
 

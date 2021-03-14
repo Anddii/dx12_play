@@ -5,6 +5,12 @@
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+namespace
+{
+    std::shared_ptr<D3D12Motor> motor;
+};
+
+
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
 
@@ -42,9 +48,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     ShowWindow(hwnd, nCmdShow);
 
-    D3D12Motor motor;
-    motor.LoadPipeline(hwnd);
-    motor.LoadAssets();
+    motor = std::shared_ptr<D3D12Motor>(new D3D12Motor());
+    motor->LoadPipeline(hwnd);
+    motor->LoadAssets();
 
     // Run the message loop.
     MSG msg = { };
@@ -55,7 +61,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
             continue;
         }
         else {
-            motor.OnRender();
+            motor->OnRender();
         }
     }
 
@@ -68,6 +74,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
     case WM_DESTROY:
         PostQuitMessage(0);
+        return 0;
+    case WM_SIZE:
+        if(motor)
+           motor->OnResize(hwnd);
         return 0;
 
     return 0;
