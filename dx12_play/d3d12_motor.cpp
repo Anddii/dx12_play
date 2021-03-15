@@ -8,6 +8,7 @@
 // 5. Create descriptor heaps. A descriptor heap can be thought of as an array of descriptors. Where each descriptor fully describes an object to the GPU
     // 5.1 Describe and create a render target view (RTV) descriptor heap.
     // 5.2 Describe and create a shader resource view (SRV) heap for the texture.
+    // 5.3 Describe and create a constant buffer view (CBV) heap for the constants.
 // 6. Create frame resources
     // 6.1 Create a RTV for each frame
 // 7. Create A command allocator, manages the underlying storage for command listsand bundles
@@ -27,7 +28,9 @@
     // 12.4 Copy the triangle data to the vertex buffer. Copy data from upload heap to Default heap
     // 12.5 Initialize the vertex buffer view.
 // 13. Create and record the bundle
-// 14. Create synchronization objectsand wait until assets have been uploaded to the GPU
+// 14. Create Texture (SRV)
+// 15. Create the constant buffer.
+// 16. Create synchronization objects and wait until assets have been uploaded to the GPU
     
 
 void D3D12Motor::LoadPipeline(HWND hwnd) {
@@ -100,6 +103,13 @@ void D3D12Motor::LoadPipeline(HWND hwnd) {
         srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_srvHeap)));
 
+        // 5.3 Describe and create a constant buffer view (CBV) heap for the constants.
+        D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc = {};
+        srvHeapDesc.NumDescriptors = 1;
+        srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        ThrowIfFailed(m_device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_cbvHeap)));
+
         m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     }
     // 6. Create frame resources.
@@ -127,8 +137,9 @@ void D3D12Motor::LoadAssets() {
         CD3DX12_DESCRIPTOR_RANGE1 texTable;
         texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
 
-        CD3DX12_ROOT_PARAMETER1 rootParameters[1];
+        CD3DX12_ROOT_PARAMETER1 rootParameters[2];
         rootParameters[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+        rootParameters[1].InitAsConstantBufferView(0);
 
         const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
             0, // shaderRegister
@@ -138,7 +149,7 @@ void D3D12Motor::LoadAssets() {
             D3D12_TEXTURE_ADDRESS_MODE_WRAP); // addressW
 
         CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC  rootSignatureDesc;
-        rootSignatureDesc.Init_1_1(1, rootParameters, 1, &pointWrap, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+        rootSignatureDesc.Init_1_1(2, rootParameters, 1, &pointWrap, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
         ComPtr<ID3DBlob> signature;
         ComPtr<ID3DBlob> error;
@@ -245,6 +256,7 @@ void D3D12Motor::LoadAssets() {
         ThrowIfFailed(m_bundle->Close());
     }
 
+    // 14. Create Texture (SRV)
     m_texture = std::shared_ptr<Texture>(new Texture("textures/image.dds", m_device, m_commandQueue));
     {
         // Describe and create a SRV for the texture.
@@ -254,6 +266,31 @@ void D3D12Motor::LoadAssets() {
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
         srvDesc.Texture2D.MipLevels = 1;
         m_device->CreateShaderResourceView(m_texture->m_resource.Get(), &srvDesc, m_srvHeap->GetCPUDescriptorHandleForHeapStart());
+    }
+
+    // 15. Create the constant buffer.
+    {
+        const UINT constantBufferSize = sizeof(SceneConstantBuffer);    // CB size is required to be 256-byte aligned.
+
+        ThrowIfFailed(m_device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize),
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            nullptr,
+            IID_PPV_ARGS(&m_constantBuffer)));
+
+        // Describe and create a constant buffer view.
+        D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+        cbvDesc.BufferLocation = m_constantBuffer->GetGPUVirtualAddress();
+        cbvDesc.SizeInBytes = constantBufferSize;
+        m_device->CreateConstantBufferView(&cbvDesc, m_cbvHeap->GetCPUDescriptorHandleForHeapStart());
+
+        // Map and initialize the constant buffer. We don't unmap this until the
+        // app closes. Keeping things mapped for the lifetime of the resource is okay.
+        CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
+        ThrowIfFailed(m_constantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&m_pCbvDataBegin)));
+        memcpy(m_pCbvDataBegin, &m_constantBufferData, sizeof(m_constantBufferData));
     }
 
     // Close the Commandlist and Execute (Copy data from upload heap to Default heap)
@@ -282,6 +319,16 @@ void D3D12Motor::LoadAssets() {
 
 void D3D12Motor::OnRender()
 {
+    const float translationSpeed = 0.005f;
+    const float offsetBounds = 1.25f;
+
+    m_constantBufferData.gWorldViewProj.x += translationSpeed;
+    if (m_constantBufferData.gWorldViewProj.x > offsetBounds)
+    {
+        m_constantBufferData.gWorldViewProj.x = -offsetBounds;
+    }
+    memcpy(m_pCbvDataBegin, &m_constantBufferData, sizeof(m_constantBufferData));
+
     // Record all the commands we need to render the scene into the command list.
     PopulateCommandList();
 
@@ -316,6 +363,8 @@ void D3D12Motor::PopulateCommandList()
     m_commandList->SetGraphicsRootDescriptorTable(0, m_srvHeap->GetGPUDescriptorHandleForHeapStart());
     m_commandList->RSSetViewports(1, &m_viewport);
     m_commandList->RSSetScissorRects(1, &m_scissorRect);
+
+    m_commandList->SetGraphicsRootConstantBufferView(1, m_constantBuffer->GetGPUVirtualAddress());
 
     // Indicate that the back buffer will be used as a render target.
     m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));

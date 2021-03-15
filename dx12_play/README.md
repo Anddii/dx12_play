@@ -1,6 +1,6 @@
 # 1 Triangle
 
-![alt text](./img/2_Texture.png "Logo Title Text 1")
+![alt text](./img/3_Constant_Buffer.png "Logo Title Text 1")
 
 Simple DirectX application. 
 
@@ -11,6 +11,8 @@ Simple DirectX application.
 4. Describe and create the swap chain
 5. Create descriptor heaps. A descriptor heap can be thought of as an array of descriptors. Where each descriptor fully describes an object to the GPU
    1. Describe and create a render target view (RTV) descriptor heap
+   2. Describe and create a shader resource view (SRV) heap for the texture.
+   3. Describe and create a constant buffer view (CBV) heap for the constants.
 6. Create frame resources
    1. Create a RTV for each frame
 7. Create A command allocator, manages the underlying storage for command listsand bundles
@@ -31,3 +33,7 @@ Simple DirectX application.
    5. 12.5 Initialize the vertex buffer view.
 5. Create and record the bundle
 6. Create synchronization objectsand wait until assets have been uploaded to the GPU
+7. Create and record the bundle
+8. Create Texture (SRV)
+9. Create the constant buffer.
+10. Create synchronization objects and wait until assets have been uploaded to the GPU

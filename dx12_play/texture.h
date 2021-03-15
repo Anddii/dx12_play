@@ -13,7 +13,7 @@ class Texture
 public:
     std::string m_name;
     std::wstring m_filename;
-    Microsoft::WRL::ComPtr<ID3D12Resource> m_resource = nullptr;
+    ComPtr<ID3D12Resource> m_resource = nullptr;
 
 	Texture(std::string filename, ComPtr<ID3D12Device> device, ComPtr<ID3D12CommandQueue> commandQueue) {
 		this->m_name = filename;
