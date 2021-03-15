@@ -8,6 +8,8 @@
 #include <directxmath.h>
 #include <exception>
 
+#include "texture.h"
+
 using namespace Microsoft::WRL;
 using namespace DirectX;
 
@@ -21,15 +23,17 @@ class D3D12Motor
 {
 private:
 
+	std::shared_ptr<Texture>m_texture;
+
 	static const UINT FrameCount = 2;
 
 	float m_aspectRatio;
 
 	struct Vertex
-	{
-		XMFLOAT3 position;
-		XMFLOAT4 color;
-	};
+    {
+        XMFLOAT3 position;
+        XMFLOAT2 uv;
+    };
 
 	// Pipeline objects.
 	D3D12_VIEWPORT m_viewport;
@@ -42,6 +46,7 @@ private:
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
 	ComPtr<ID3D12RootSignature> m_rootSignature;
 	ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
+	ComPtr<ID3D12DescriptorHeap> m_srvHeap;
 	ComPtr<ID3D12PipelineState> m_pipelineState;
 	ComPtr<ID3D12GraphicsCommandList> m_commandList;
 	ComPtr<ID3D12GraphicsCommandList> m_bundle;

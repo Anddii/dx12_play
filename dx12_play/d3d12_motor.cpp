@@ -7,13 +7,14 @@
 // 4. Describe and create the swap chain
 // 5. Create descriptor heaps. A descriptor heap can be thought of as an array of descriptors. Where each descriptor fully describes an object to the GPU
     // 5.1 Describe and create a render target view (RTV) descriptor heap.
+    // 5.2 Describe and create a shader resource view (SRV) heap for the texture.
 // 6. Create frame resources
     // 6.1 Create a RTV for each frame
 // 7. Create A command allocator, manages the underlying storage for command listsand bundles
 // 8. Create A bundle allocator
 
 // Load Assets
-// 9. Create an empty root signature.  A graphics root signature defines what resources are bound to the graphics pipeline
+// 9. Create an empty root signature.  A The root signature defines the resources the shader programs expect
 // 10. Create the pipeline state, which includes compiling and loading shaders
     // 10.1 Compile and load shaders
     // 10.2 Define the vertex input layout
@@ -92,6 +93,13 @@ void D3D12Motor::LoadPipeline(HWND hwnd) {
         rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&m_rtvHeap)));
 
+        // 5.2 Describe and create a shader resource view (SRV) heap for the texture(s).
+        D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+        srvHeapDesc.NumDescriptors = 1;
+        srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+        srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        ThrowIfFailed(m_device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_srvHeap)));
+
         m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     }
     // 6. Create frame resources.
@@ -116,12 +124,25 @@ void D3D12Motor::LoadPipeline(HWND hwnd) {
 void D3D12Motor::LoadAssets() {
     // 9. Create an empty root signature.
     {
-        CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-        rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+        CD3DX12_DESCRIPTOR_RANGE1 texTable;
+        texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+
+        CD3DX12_ROOT_PARAMETER1 rootParameters[1];
+        rootParameters[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+
+        const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
+            0, // shaderRegister
+            D3D12_FILTER_MIN_MAG_MIP_POINT, // filter
+            D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
+            D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
+            D3D12_TEXTURE_ADDRESS_MODE_WRAP); // addressW
+
+        CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC  rootSignatureDesc;
+        rootSignatureDesc.Init_1_1(1, rootParameters, 1, &pointWrap, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
         ComPtr<ID3DBlob> signature;
         ComPtr<ID3DBlob> error;
-        ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
+        ThrowIfFailed(D3DX12SerializeVersionedRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
         ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
     }
 
@@ -145,7 +166,7 @@ void D3D12Motor::LoadAssets() {
         D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
         {
             { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-            { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+            { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
         };
 
         // 10.3 Describe and create the graphics pipeline state object (PSO).
@@ -174,9 +195,9 @@ void D3D12Motor::LoadAssets() {
         // 12.1 Define the geometry for a triangle
         Vertex triangleVertices[] =
         {
-            { { 0.0f, 0.25f * m_aspectRatio, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-            { { 0.25f, -0.25f * m_aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-            { { -0.25f, -0.25f * m_aspectRatio, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
+            { { 0.0f, 0.25f * m_aspectRatio, 0.0f }, { 0.5f, 0.0f } },
+            { { 0.25f, -0.25f * m_aspectRatio, 0.0f }, { 1.0f, 1.0f } },
+            { { -0.25f, -0.25f * m_aspectRatio, 0.0f }, { 0.0f, 1.0f } }
         };
         const UINT vertexBufferSize = sizeof(triangleVertices);
 
@@ -208,11 +229,6 @@ void D3D12Motor::LoadAssets() {
         UpdateSubresources(m_commandList.Get(), m_defaultBuffer.Get(), m_vertexBuffer.Get(), 0, 0, 1, &subResourceData);
         m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_defaultBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ));
 
-        // Close the Commandlist and Execute (Copy data from upload heap to Default heap)
-        ThrowIfFailed(m_commandList->Close());
-        ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
-        m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
-
         // 12.5 Initialize the vertex buffer view.
         m_vertexBufferView.BufferLocation = m_defaultBuffer->GetGPUVirtualAddress();
         m_vertexBufferView.StrideInBytes = sizeof(Vertex);
@@ -228,6 +244,22 @@ void D3D12Motor::LoadAssets() {
         m_bundle->DrawInstanced(3, 1, 0, 0);
         ThrowIfFailed(m_bundle->Close());
     }
+
+    m_texture = std::shared_ptr<Texture>(new Texture("textures/image.dds", m_device, m_commandQueue));
+    {
+        // Describe and create a SRV for the texture.
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Format = m_texture->m_resource->GetDesc().Format;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MipLevels = 1;
+        m_device->CreateShaderResourceView(m_texture->m_resource.Get(), &srvDesc, m_srvHeap->GetCPUDescriptorHandleForHeapStart());
+    }
+
+    // Close the Commandlist and Execute (Copy data from upload heap to Default heap)
+    ThrowIfFailed(m_commandList->Close());
+    ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
+    m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
     {
@@ -277,6 +309,11 @@ void D3D12Motor::PopulateCommandList()
 
     // Set necessary state.
     m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+
+    ID3D12DescriptorHeap* ppHeaps[] = { m_srvHeap.Get() };
+    m_commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+    m_commandList->SetGraphicsRootDescriptorTable(0, m_srvHeap->GetGPUDescriptorHandleForHeapStart());
     m_commandList->RSSetViewports(1, &m_viewport);
     m_commandList->RSSetScissorRects(1, &m_scissorRect);
 

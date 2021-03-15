@@ -149,6 +149,7 @@
   <ItemGroup>
     <ClInclude Include="d3d12_motor.h" />
     <ClInclude Include="d3dx12.h" />
+    <ClInclude Include="texture.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -157,6 +158,9 @@
     <CopyFileToFolders Include="shaders.hlsl">
       <FileType>Document</FileType>
     </CopyFileToFolders>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="textures\image.dds" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
