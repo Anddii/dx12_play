@@ -2,12 +2,14 @@
 #include <windows.h>
 
 #include "d3d12_motor.h"
+#include "game.h"
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 namespace
 {
     std::shared_ptr<D3D12Motor> motor;
+    std::shared_ptr<Game> game;
 };
 
 
@@ -52,16 +54,17 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     motor->LoadPipeline(hwnd);
     motor->LoadAssets();
 
+    game = std::shared_ptr<Game>(new Game(motor));
+    game->Init();
+
+    
+
     // Run the message loop.
     MSG msg = { };
     while (WM_QUIT != msg.message) {
         if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
-            continue;
-        }
-        else {
-            motor->OnRender();
         }
     }
 
@@ -77,7 +80,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     case WM_SIZE:
         if(motor)
-           motor->OnResize(hwnd);
+            motor->OnResize(hwnd);
+        return 0;
+    case WM_PAINT:
+        if (motor)
+        {
+            motor->OnUpdate();
+            motor->OnRender();
+        }
         return 0;
 
     return 0;

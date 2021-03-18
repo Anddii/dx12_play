@@ -12,30 +12,57 @@
 
 cbuffer cb_object : register(b0)
 {
-    float4 gWorldViewProj;
-    float4 padding[15];
+    float4x4 gWorld;
+    float4x4 gViewProj;
+    float aspectRatio;
+};
+
+struct VertexIn
+{
+    float4 position : POSITION;
+    float4 uv : TEXCOORD;
+    float3 normal : NORMAL;
+    uint instanceID : SV_InstanceID;
 };
 
 struct PSInput
 {
     float4 position : SV_POSITION;
     float2 uv : TEXCOORD;
+    float3 normal : NORMAL;
 };
 
 Texture2D g_texture : register(t0);
 SamplerState g_sampler : register(s0);
 
-PSInput VSMain(float4 position : POSITION, float4 uv : TEXCOORD)
+PSInput VSMain(VertexIn vIn)
 {
     PSInput result;
 
-    result.position = position + gWorldViewProj;
-    result.uv = uv;
+    result.position = mul(vIn.position, gWorld);
+    result.position = mul(result.position, gViewProj);
+    result.position.x /= aspectRatio;
+    result.position.x += vIn.instanceID;
+    
+    result.uv = float2(vIn.uv.x, -vIn.uv.y);
+
+    result.normal = vIn.normal;
 
     return result;
 }
 
-float4 PSMain(PSInput input) : SV_TARGET
+float4 PSMain(PSInput pIn) : SV_TARGET
 {
-    return g_texture.Sample(g_sampler, input.uv);
+    float3 lightDir = float3(0.0f,0.5,0.5f);
+    //lightDir = normalize(lightDir);
+
+    float3 diff = 2 * lightDir * max(0.0, dot(pIn.normal, lightDir));
+
+    float4 diffuse = g_texture.Sample(g_sampler, pIn.uv);
+    float3 finalColor;
+
+    finalColor = diffuse * float4(0.4f, 0.4f, 0.45f, 1.0f); // diffuse * ambient
+    finalColor += saturate(dot(diff, pIn.normal) * diffuse * float4(1.0f, 1.0f, 1.0f, 1.0f)); // diffuse * directional
+
+    return float4(finalColor,1.0f);
 }

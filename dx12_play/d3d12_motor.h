@@ -8,6 +8,7 @@
 #include <directxmath.h>
 #include <exception>
 
+#include "vertex.h"
 #include "texture.h"
 
 using namespace Microsoft::WRL;
@@ -23,24 +24,20 @@ class D3D12Motor
 {
 private:
 
+	int frame = 0;
+
 	std::shared_ptr<Texture>m_texture;
 
 	static const UINT FrameCount = 2;
 
 	float m_aspectRatio;
 
-	struct Vertex
-    {
-        XMFLOAT3 position;
-        XMFLOAT2 uv;
-    };
-
 	struct SceneConstantBuffer
 	{
-		XMFLOAT4 gWorldViewProj;
-		float padding[60]; // Padding so the constant buffer is 256-byte aligned.
+		XMFLOAT4X4 gWorld = {};
+		XMFLOAT4X4 gViewProj = {};
+		float gAspectRatio = 1;
 	};
-	static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned");
 
 	// Pipeline objects.
 	D3D12_VIEWPORT m_viewport;
@@ -48,11 +45,13 @@ private:
 	ComPtr<IDXGISwapChain3> m_swapChain;
 	ComPtr<ID3D12Device> m_device;
 	ComPtr<ID3D12Resource> m_renderTargets[2];
+	ComPtr<ID3D12Resource> m_depthStencilBuffer;
 	ComPtr<ID3D12CommandAllocator> m_commandAllocators[FrameCount];
 	ComPtr<ID3D12CommandAllocator> m_bundleAllocator;
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
 	ComPtr<ID3D12RootSignature> m_rootSignature;
 	ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
+	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_srvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_cbvHeap;
 	ComPtr<ID3D12PipelineState> m_pipelineState;
@@ -63,13 +62,13 @@ private:
 
 	// App resources.
 	ComPtr<ID3D12Resource> m_vertexBuffer;
-	ComPtr<ID3D12Resource> m_defaultBuffer;
+	ComPtr<ID3D12Resource> m_indexBuffer;
 	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
+	D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
 
 	ComPtr<ID3D12Resource> m_constantBuffer;
 	SceneConstantBuffer m_constantBufferData;
 	UINT8* m_pCbvDataBegin;
-
 
 	// Synchronization objects.
 	UINT m_frameIndex;
@@ -77,16 +76,27 @@ private:
 	ComPtr<ID3D12Fence> m_fence;
 	UINT64 m_fenceValues[FrameCount];
 
+	void CreateDepthBuffer();
 	void PopulateCommandList();
 	void WaitForGpu();
 	void MoveToNextFrame();
 	void UpdateViewport(HWND hwnd);
 	void ThrowIfFailed(HRESULT hr);
+
+	UINT CalcConstantBufferByteSize(UINT byteSize)
+	{
+		// Constant buffers must be a multiple of the minimum hardware allocation size (usually 256 bytes).
+		return (byteSize + 255) & ~255;
+	}
+
 public:
 	D3D12Motor() {}
 	~D3D12Motor();
 	void LoadPipeline(HWND hwnd);
 	void LoadAssets();
+	void CreateVertexBuffer(std::vector<Vertex> verticles);
+	void CreateIndexBuffer(std::vector<std::uint16_t> indices);
+	void OnUpdate();
 	void OnRender();
 	void OnResize(HWND hwnd);
 };
