@@ -10,6 +10,7 @@
 
 #include "vertex.h"
 #include "texture.h"
+#include "utils.h"
 
 using namespace Microsoft::WRL;
 using namespace DirectX;
@@ -43,7 +44,7 @@ private:
 	D3D12_VIEWPORT m_viewport;
 	D3D12_RECT m_scissorRect;
 	ComPtr<IDXGISwapChain3> m_swapChain;
-	ComPtr<ID3D12Device> m_device;
+	ComPtr<ID3D12Device2> m_device;
 	ComPtr<ID3D12Resource> m_renderTargets[2];
 	ComPtr<ID3D12Resource> m_depthStencilBuffer;
 	ComPtr<ID3D12CommandAllocator> m_commandAllocators[FrameCount];
@@ -55,8 +56,8 @@ private:
 	ComPtr<ID3D12DescriptorHeap> m_srvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_cbvHeap;
 	ComPtr<ID3D12PipelineState> m_pipelineState;
-	ComPtr<ID3D12GraphicsCommandList> m_commandList;
-	ComPtr<ID3D12GraphicsCommandList> m_bundle;
+	ComPtr<ID3D12GraphicsCommandList6> m_commandList;
+	ComPtr<ID3D12GraphicsCommandList6> m_bundle;
 
 	UINT m_rtvDescriptorSize;
 

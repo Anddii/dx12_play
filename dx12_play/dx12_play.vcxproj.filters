@@ -50,18 +50,24 @@
     <ClInclude Include="vertex.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <CopyFileToFolders Include="shaders.hlsl">
-      <Filter>Resource Files</Filter>
-    </CopyFileToFolders>
-  </ItemGroup>
-  <ItemGroup>
     <Image Include="textures\image.dds">
       <Filter>Resource Files\textures</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="meshletMS.hlsl">
+      <Filter>Resource Files</Filter>
+    </FxCompile>
+    <FxCompile Include="PS.hlsl">
+      <Filter>Resource Files</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>
