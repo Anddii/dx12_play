@@ -146,38 +146,17 @@ void D3D12Motor::LoadAssets() {
     // 10. Create the pipeline state, which includes compiling and loading shaders.
     {
         // 9. Create an root signature.
-        {
-            CD3DX12_DESCRIPTOR_RANGE1 texTable;
-            texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
-
-            CD3DX12_ROOT_PARAMETER1 rootParameters[2];
-            rootParameters[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-            rootParameters[1].InitAsConstantBufferView(0);
-
-            const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
-                0, // shaderRegister
-                D3D12_FILTER_MIN_MAG_MIP_POINT, // filter
-                D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
-                D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
-                D3D12_TEXTURE_ADDRESS_MODE_WRAP); // addressW
-
-            CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC  rootSignatureDesc;
-            rootSignatureDesc.Init_1_1(2, rootParameters, 1, &pointWrap, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
-            ComPtr<ID3DBlob> signature;
-            ComPtr<ID3DBlob> error;
-            ThrowIfFailed(D3DX12SerializeVersionedRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
-            ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
-        } 
-        
         struct
         {
             byte* data;
             uint32_t size;
         } meshShader, pixelShader;
 
-        ReadDataFromFile(L"meshletMS.cso", &meshShader.data, &meshShader.size);
+        ReadDataFromFile(L"MS.cso", &meshShader.data, &meshShader.size);
         ReadDataFromFile(L"PS.cso", &pixelShader.data, &pixelShader.size);
+
+        // Pull root signature from the precompiled mesh shader.
+        ThrowIfFailed(m_device->CreateRootSignature(0, meshShader.data, meshShader.size, IID_PPV_ARGS(&m_rootSignature)));
 
         D3DX12_MESH_SHADER_PIPELINE_STATE_DESC psoDesc = {};
         psoDesc.pRootSignature = m_rootSignature.Get();
@@ -187,7 +166,7 @@ void D3D12Motor::LoadAssets() {
         psoDesc.RTVFormats[0] = m_renderTargets[0]->GetDesc().Format;
         psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
         psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);    // CW front; cull back
-        psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
+        psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);         // Opaque
         psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT); // Less-equal depth test w/ writes; no stencil
         psoDesc.SampleMask = UINT_MAX;
@@ -251,12 +230,6 @@ void D3D12Motor::LoadAssets() {
         // complete before continuing.
         WaitForGpu();
     }
-
-    // Close the Commandlist and Execute (Copy data from upload heap to Default heap)
-    ThrowIfFailed(m_commandList->Close());
-    ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
-    m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
-    WaitForGpu();
 }
 
 void D3D12Motor::CreateDepthBuffer()
@@ -299,7 +272,7 @@ void D3D12Motor::CreateDepthBuffer()
 void D3D12Motor::OnUpdate()
 {
     // This is stupid. 
-    const float translationSpeed = (frame+0.005f)*0.01f;
+    const float translationSpeed = (frame+0.005f)*0.03f;
 
     // MOVE TO CAMERA? 
     XMFLOAT4X4 mView = {};
@@ -308,8 +281,8 @@ void D3D12Motor::OnUpdate()
     XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * DirectX::XM_PI, 1, 0.1f, 100.0f);
     XMStoreFloat4x4(&mProj, P);
 
-    XMVECTOR pos = XMVectorSet(0, 1.f, 3.f, 1.0f);
-    XMVECTOR target = XMVectorSet(0, 0.0f, 0.f, 1.0f);
+    XMVECTOR pos = XMVectorSet(-3.f, 2.f, 5.f, 1.0f);
+    XMVECTOR target = XMVectorSet(-3.f, 0.0f, -5, 1.0f);
     XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
     XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
@@ -357,15 +330,9 @@ void D3D12Motor::PopulateCommandList()
     // Set necessary state.
     m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
 
-    ID3D12DescriptorHeap* ppHeaps[] = { m_srvHeap.Get() };
-    m_commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-
-    m_commandList->SetGraphicsRootDescriptorTable(0, m_srvHeap->GetGPUDescriptorHandleForHeapStart());
     m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
     m_commandList->RSSetViewports(1, &m_viewport);
     m_commandList->RSSetScissorRects(1, &m_scissorRect);
-
-    m_commandList->SetGraphicsRootConstantBufferView(1, m_constantBuffer->GetGPUVirtualAddress());
 
     // Indicate that the back buffer will be used as a render target.
     m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
@@ -374,14 +341,34 @@ void D3D12Motor::PopulateCommandList()
     m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
 
     // Record commands.
-    const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+    const float clearColor[] = { 0.2f, 0.2f, 0.4f, 1.0f };
     m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     m_commandList->ClearDepthStencilView(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
     
-    // Execute the commands stored in the bundle.
-    // m_commandList->ExecuteBundle(m_bundle.Get());
+    m_commandList->SetGraphicsRootConstantBufferView(0, m_constantBuffer->GetGPUVirtualAddress());
+    m_commandList->SetGraphicsRootShaderResourceView(2, m_meshletBuffer->GetGPUVirtualAddress());
+    m_commandList->SetGraphicsRootShaderResourceView(3, m_vertexBuffer->GetGPUVirtualAddress());
+    m_commandList->SetGraphicsRootShaderResourceView(4, m_indexBuffer->GetGPUVirtualAddress());
+    m_commandList->SetGraphicsRootShaderResourceView(5, m_primitiveBuffer->GetGPUVirtualAddress());
 
-    m_commandList->DispatchMesh(1,1,1);
+    int packCount = min(MAX_VERTS / m_modelVertexCount, MAX_PRIMS / m_modelPrimitiveCount);
+    float groupsPerInstance = float(m_modelMeshletCount - 1) + 1.0f / packCount;
+
+    uint32_t maxInstancePerBatch = static_cast<uint32_t>(float(c_maxGroupDispatchCount) / groupsPerInstance);
+    uint32_t dispatchCount = DivRoundUp(m_instanceCount, maxInstancePerBatch);
+
+    for (uint32_t j = 0; j < dispatchCount; ++j)
+    {
+        uint32_t instanceOffset = maxInstancePerBatch * j;
+        uint32_t instanceCount = min(m_instanceCount - instanceOffset, maxInstancePerBatch);
+
+        m_commandList->SetGraphicsRoot32BitConstant(1, instanceCount, 0);
+        m_commandList->SetGraphicsRoot32BitConstant(1, instanceOffset, 1);
+        m_commandList->SetGraphicsRoot32BitConstant(1, m_modelMeshletCount, 2);
+
+        uint32_t groupCount = static_cast<uint32_t>(ceilf(groupsPerInstance * instanceCount));
+        m_commandList->DispatchMesh(groupCount, 1, 1);
+    }
 
     // Indicate that the back buffer will now be used to present.
     m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
@@ -475,6 +462,103 @@ void D3D12Motor::OnResize(HWND hwnd) {
    
     // Reset the frame index to the current back buffer index.
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+}
+
+void D3D12Motor::CreateVertexBuffer(std::vector<Vertex> verticles, std::vector<Meshlet> meshlets, std::vector<uint8_t> uniqueVertexIB, std::vector<MeshletTriangle> primitiveIndices) {
+
+    m_modelMeshletCount = meshlets.size();
+    m_modelVertexCount = meshlets[meshlets.size()-1].VertCount;
+    m_modelPrimitiveCount = meshlets[meshlets.size() - 1].PrimCount;
+
+    // 12.1 Define the geometry for a triangle
+    const UINT vertexBufferSize = (UINT)verticles.size() * sizeof(Vertex);
+
+    ComPtr<ID3D12Resource> m_uploadVertexBuffer;
+    // 12.2 Create Upload heap 
+    CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
+    ThrowIfFailed(m_device->CreateCommittedResource(
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+        D3D12_HEAP_FLAG_NONE,
+        &desc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&m_uploadVertexBuffer)));
+
+    // 12.3 Create Default heap, the actual buffer resource.
+    ThrowIfFailed(m_device->CreateCommittedResource(
+        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+        D3D12_HEAP_FLAG_NONE,
+        &desc,
+        D3D12_RESOURCE_STATE_COMMON,
+        nullptr,
+        IID_PPV_ARGS(&m_vertexBuffer)));
+
+    // 12.4 Copy the triangle data to the vertex buffer. Copy data from upload heap to Default heap
+    D3D12_SUBRESOURCE_DATA subResourceData = {};
+    subResourceData.pData = verticles.data();
+    subResourceData.RowPitch = vertexBufferSize;
+    subResourceData.SlicePitch = subResourceData.RowPitch;
+
+    UpdateSubresources(m_commandList.Get(), m_vertexBuffer.Get(), m_uploadVertexBuffer.Get(), 0, 0, 1, &subResourceData);
+    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ));
+
+    CD3DX12_RESOURCE_DESC meshletDesc = CD3DX12_RESOURCE_DESC::Buffer(meshlets.size() * sizeof(meshlets[0]));
+    CD3DX12_RESOURCE_DESC vertexIndexDesc = CD3DX12_RESOURCE_DESC::Buffer((UINT)uniqueVertexIB.size() * sizeof(std::uint16_t));
+    CD3DX12_RESOURCE_DESC primitiveDesc = CD3DX12_RESOURCE_DESC::Buffer(primitiveIndices.size() * sizeof(primitiveIndices[0]));
+
+    CD3DX12_HEAP_PROPERTIES defaultHeap = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    ThrowIfFailed(m_device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &meshletDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_meshletBuffer)));
+    ThrowIfFailed(m_device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &vertexIndexDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_indexBuffer)));
+    ThrowIfFailed(m_device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &primitiveDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_primitiveBuffer)));
+
+
+    ComPtr<ID3D12Resource> m_uploadeshletBuffer;
+    ComPtr<ID3D12Resource> m_uploadIndexBuffer;
+    ComPtr<ID3D12Resource> m_uploadPrimitiveBuffer;
+
+    CD3DX12_HEAP_PROPERTIES uploadHeap = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    ThrowIfFailed(m_device->CreateCommittedResource(&uploadHeap, D3D12_HEAP_FLAG_NONE, &meshletDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_uploadeshletBuffer)));
+    ThrowIfFailed(m_device->CreateCommittedResource(&uploadHeap, D3D12_HEAP_FLAG_NONE, &vertexIndexDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_uploadIndexBuffer)));
+    ThrowIfFailed(m_device->CreateCommittedResource(&uploadHeap, D3D12_HEAP_FLAG_NONE, &primitiveDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_uploadPrimitiveBuffer)));
+
+    {
+        uint8_t* memory = nullptr;
+        m_uploadeshletBuffer->Map(0, nullptr, reinterpret_cast<void**>(&memory));
+        std::memcpy(memory, meshlets.data(), meshlets.size() * sizeof(meshlets[0]));
+        m_uploadeshletBuffer->Unmap(0, nullptr);
+    }
+
+    {
+        uint8_t* memory = nullptr;
+        m_uploadIndexBuffer->Map(0, nullptr, reinterpret_cast<void**>(&memory));
+        std::memcpy(memory, uniqueVertexIB.data(), uniqueVertexIB.size());
+        m_uploadIndexBuffer->Unmap(0, nullptr);
+    }
+
+    {
+        uint8_t* memory = nullptr;
+        m_uploadPrimitiveBuffer->Map(0, nullptr, reinterpret_cast<void**>(&memory));
+        std::memcpy(memory, primitiveIndices.data(), primitiveIndices.size() * sizeof(primitiveIndices[0]));
+        m_uploadPrimitiveBuffer->Unmap(0, nullptr);
+    }
+
+    D3D12_RESOURCE_BARRIER postCopyBarriers[3];
+
+    m_commandList->CopyResource(m_indexBuffer.Get(), m_uploadIndexBuffer.Get());
+    postCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(m_indexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    m_commandList->CopyResource(m_meshletBuffer.Get(), m_uploadeshletBuffer.Get());
+    postCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_meshletBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    m_commandList->CopyResource(m_primitiveBuffer.Get(), m_uploadPrimitiveBuffer.Get());
+    postCopyBarriers[2] = CD3DX12_RESOURCE_BARRIER::Transition(m_primitiveBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    // Close the Commandlist and Execute (Copy data from upload heap to Default heap)
+    ThrowIfFailed(m_commandList->Close());
+    ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
+    m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+
+    WaitForGpu();
 }
 
 void D3D12Motor::ThrowIfFailed(HRESULT hr) {

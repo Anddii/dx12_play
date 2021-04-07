@@ -53,6 +53,9 @@
     <ClInclude Include="utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="shared.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -63,7 +66,7 @@
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="meshletMS.hlsl">
+    <FxCompile Include="MS.hlsl">
       <Filter>Resource Files</Filter>
     </FxCompile>
     <FxCompile Include="PS.hlsl">

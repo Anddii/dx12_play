@@ -4,6 +4,7 @@
 #include "wavefront_reader.h"
 
 #include "DirectXMesh.h"
+#include "shared.h"
 
 using namespace Microsoft::WRL;
 

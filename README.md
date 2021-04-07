@@ -1,6 +1,6 @@
 # 1 Triangle
 
-![alt text](./img/5_Mesh_Shader.png "Logo Title Text 1")
+![alt text](./dx12_play/img/6_Mesh_Shader_Model.png "Logo Title Text 1")
 
 Simple DirectX application. 
 

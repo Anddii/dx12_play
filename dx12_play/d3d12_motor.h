@@ -1,4 +1,6 @@
 #pragma once
+#include "shared.h"
+
 #include <wrl/client.h>
 #include <d3d12.h>
 #include <D3DCompiler.h>
@@ -7,7 +9,8 @@
 #include <stdio.h>
 #include <directxmath.h>
 #include <exception>
-
+#include "DirectXMesh.h"
+#include <math.h>
 #include "vertex.h"
 #include "texture.h"
 #include "utils.h"
@@ -24,6 +27,14 @@ using namespace DirectX;
 class D3D12Motor
 {
 private:
+	// Limit our dispatch threadgroup count to 65536 for indexing simplicity.
+	const uint32_t c_maxGroupDispatchCount = 65536u;
+	// An integer version of ceil(value / divisor)
+	template <typename T, typename U>
+	T DivRoundUp(T value, U divisor)
+	{
+		return (value + divisor - 1) / divisor;
+	}
 
 	int frame = 0;
 
@@ -38,6 +49,11 @@ private:
 		XMFLOAT4X4 gWorld = {};
 		XMFLOAT4X4 gViewProj = {};
 		float gAspectRatio = 1;
+	};
+
+	struct MeshConstantBuffer
+	{
+		int meshOffset = 0;
 	};
 
 	// Pipeline objects.
@@ -61,9 +77,17 @@ private:
 
 	UINT m_rtvDescriptorSize;
 
-	// App resources.
+	// Model resources.
+	ComPtr<ID3D12Resource> m_meshletBuffer;
 	ComPtr<ID3D12Resource> m_vertexBuffer;
 	ComPtr<ID3D12Resource> m_indexBuffer;
+	ComPtr<ID3D12Resource> m_primitiveBuffer;
+
+	int m_modelVertexCount;
+	int m_modelPrimitiveCount;
+	int m_modelMeshletCount;
+	int m_instanceCount = 9;
+
 	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
 	D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
 
@@ -82,6 +106,7 @@ private:
 	void WaitForGpu();
 	void MoveToNextFrame();
 	void UpdateViewport(HWND hwnd);
+	void RegenerateInstances();
 	void ThrowIfFailed(HRESULT hr);
 
 	UINT CalcConstantBufferByteSize(UINT byteSize)
@@ -95,8 +120,11 @@ public:
 	~D3D12Motor();
 	void LoadPipeline(HWND hwnd);
 	void LoadAssets();
-	void CreateVertexBuffer(std::vector<Vertex> verticles);
-	void CreateIndexBuffer(std::vector<std::uint16_t> indices);
+	void CreateVertexBuffer(
+		std::vector<Vertex> verticles, 
+		std::vector<Meshlet> meshlets, 
+		std::vector<uint8_t> uniqueVertexIB,
+		std::vector<MeshletTriangle> primitiveIndices);
 	void OnUpdate();
 	void OnRender();
 	void OnResize(HWND hwnd);

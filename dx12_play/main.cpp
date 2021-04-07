@@ -57,8 +57,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     game = std::shared_ptr<Game>(new Game(motor));
     game->Init();
 
-    
-
     // Run the message loop.
     MSG msg = { };
     while (WM_QUIT != msg.message) {
