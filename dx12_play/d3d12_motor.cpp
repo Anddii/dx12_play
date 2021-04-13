@@ -184,31 +184,6 @@ void D3D12Motor::LoadAssets() {
     // 11. Create the command list
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
 
-    // 15. Create the constant buffer.
-    {
-        UINT elementByteSize = D3D12Motor::CalcConstantBufferByteSize(sizeof(SceneConstantBuffer));  // CB size is required to be 256-byte aligned.
-
-        ThrowIfFailed(m_device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-            D3D12_HEAP_FLAG_NONE,
-            &CD3DX12_RESOURCE_DESC::Buffer(elementByteSize),
-            D3D12_RESOURCE_STATE_GENERIC_READ,
-            nullptr,
-            IID_PPV_ARGS(&m_constantBuffer)));
-
-        // Describe and create a constant buffer view.
-        D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-        cbvDesc.BufferLocation = m_constantBuffer->GetGPUVirtualAddress();
-        cbvDesc.SizeInBytes = elementByteSize;
-        m_device->CreateConstantBufferView(&cbvDesc, m_cbvHeap->GetCPUDescriptorHandleForHeapStart());
-
-        // Map and initialize the constant buffer. We don't unmap this until the
-        // app closes. Keeping things mapped for the lifetime of the resource is okay.
-        CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
-        ThrowIfFailed(m_constantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&m_pCbvDataBegin)));
-        memcpy(m_pCbvDataBegin, &m_constantBufferData, sizeof(m_constantBufferData));
-    }
-
     // Transition the resource from its initial state to be used as a depth buffer.
     m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_depthStencilBuffer.Get(),
         D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
@@ -271,32 +246,6 @@ void D3D12Motor::CreateDepthBuffer()
 
 void D3D12Motor::OnUpdate()
 {
-    // This is stupid. 
-    const float translationSpeed = (frame+0.005f)*0.03f;
-
-    // MOVE TO CAMERA? 
-    XMFLOAT4X4 mView = {};
-    XMFLOAT4X4 mProj = {};
-
-    XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * DirectX::XM_PI, 1, 0.1f, 100.0f);
-    XMStoreFloat4x4(&mProj, P);
-
-    XMVECTOR pos = XMVectorSet(-3.f, 2.f, 5.f, 1.0f);
-    XMVECTOR target = XMVectorSet(-3.f, 0.0f, -5, 1.0f);
-    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
-    XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
-    XMMATRIX proj = XMLoadFloat4x4(&mProj);
-
-    XMStoreFloat4x4(&mView, view);
-    XMMATRIX viewProj = XMMatrixMultiply(view, proj);
-   
-    XMStoreFloat4x4(&m_constantBufferData.gViewProj, DirectX::XMMatrixTranspose(viewProj));
-    XMStoreFloat4x4(&m_constantBufferData.gWorld, XMMatrixRotationRollPitchYaw(0, translationSpeed, 0));
-    m_constantBufferData.gAspectRatio = m_viewport.Width / m_viewport.Height;
-
-    memcpy(m_pCbvDataBegin, &m_constantBufferData, sizeof(m_constantBufferData));
-
     frame++;
 }
 
@@ -345,29 +294,38 @@ void D3D12Motor::PopulateCommandList()
     m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     m_commandList->ClearDepthStencilView(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
     
-    m_commandList->SetGraphicsRootConstantBufferView(0, m_constantBuffer->GetGPUVirtualAddress());
-    m_commandList->SetGraphicsRootShaderResourceView(2, m_meshletBuffer->GetGPUVirtualAddress());
-    m_commandList->SetGraphicsRootShaderResourceView(3, m_vertexBuffer->GetGPUVirtualAddress());
-    m_commandList->SetGraphicsRootShaderResourceView(4, m_indexBuffer->GetGPUVirtualAddress());
-    m_commandList->SetGraphicsRootShaderResourceView(5, m_primitiveBuffer->GetGPUVirtualAddress());
-
-    int packCount = min(MAX_VERTS / m_modelVertexCount, MAX_PRIMS / m_modelPrimitiveCount);
-    float groupsPerInstance = float(m_modelMeshletCount - 1) + 1.0f / packCount;
-
-    uint32_t maxInstancePerBatch = static_cast<uint32_t>(float(c_maxGroupDispatchCount) / groupsPerInstance);
-    uint32_t dispatchCount = DivRoundUp(m_instanceCount, maxInstancePerBatch);
-
-    for (uint32_t j = 0; j < dispatchCount; ++j)
+    for each (Mesh mesh in mesh)
     {
-        uint32_t instanceOffset = maxInstancePerBatch * j;
-        uint32_t instanceCount = min(m_instanceCount - instanceOffset, maxInstancePerBatch);
+        const auto toCopyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(mesh.m_instanceBuffer.Get(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_COPY_DEST);
+        m_commandList->ResourceBarrier(1, &toCopyBarrier);
+        m_commandList->CopyResource(mesh.m_instanceBuffer.Get(), mesh.m_instanceUpload.Get());
+        const auto toGenericBarrier = CD3DX12_RESOURCE_BARRIER::Transition(mesh.m_instanceBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ);
+        m_commandList->ResourceBarrier(1, &toGenericBarrier);
 
-        m_commandList->SetGraphicsRoot32BitConstant(1, instanceCount, 0);
-        m_commandList->SetGraphicsRoot32BitConstant(1, instanceOffset, 1);
-        m_commandList->SetGraphicsRoot32BitConstant(1, m_modelMeshletCount, 2);
+        m_commandList->SetGraphicsRootShaderResourceView(1, mesh.m_meshletBuffer->GetGPUVirtualAddress());
+        m_commandList->SetGraphicsRootShaderResourceView(2, mesh.m_vertexBuffer->GetGPUVirtualAddress());
+        m_commandList->SetGraphicsRootShaderResourceView(3, mesh.m_indexBuffer->GetGPUVirtualAddress());
+        m_commandList->SetGraphicsRootShaderResourceView(4, mesh.m_primitiveBuffer->GetGPUVirtualAddress());
+        m_commandList->SetGraphicsRootShaderResourceView(5, mesh.m_instanceBuffer->GetGPUVirtualAddress());
 
-        uint32_t groupCount = static_cast<uint32_t>(ceilf(groupsPerInstance * instanceCount));
-        m_commandList->DispatchMesh(groupCount, 1, 1);
+        int packCount = min(MAX_VERTS / mesh.m_modelVertexCount, MAX_PRIMS / mesh.m_modelPrimitiveCount);
+        float groupsPerInstance = float(mesh.m_modelMeshletCount - 1) + 1.0f / packCount;
+
+        uint32_t maxInstancePerBatch = static_cast<uint32_t>(float(c_maxGroupDispatchCount) / groupsPerInstance);
+        uint32_t dispatchCount = DivRoundUp(mesh.m_instanceCount, maxInstancePerBatch);
+
+        for (uint32_t j = 0; j < dispatchCount; ++j)
+        {
+            uint32_t instanceOffset = maxInstancePerBatch * j;
+            uint32_t instanceCount = min(mesh.m_instanceCount - instanceOffset, maxInstancePerBatch);
+
+            m_commandList->SetGraphicsRoot32BitConstant(0, instanceCount, 0);
+            m_commandList->SetGraphicsRoot32BitConstant(0, instanceOffset, 1);
+            m_commandList->SetGraphicsRoot32BitConstant(0, mesh.m_modelMeshletCount, 2);
+
+            uint32_t groupCount = static_cast<uint32_t>(ceilf(groupsPerInstance * instanceCount));
+            m_commandList->DispatchMesh(groupCount, 1, 1);
+        }
     }
 
     // Indicate that the back buffer will now be used to present.
@@ -444,12 +402,14 @@ void D3D12Motor::OnResize(HWND hwnd) {
         m_renderTargets[i].Reset();
         m_fenceValues[i] = m_fenceValues[m_frameIndex];
     }
-    //m_depthStencilBuffer.Reset();
+    m_depthStencilBuffer.Reset();
 
     // Resize the swap chain to the desired dimensions.
     DXGI_SWAP_CHAIN_DESC desc = {};
     m_swapChain->GetDesc(&desc);
     ThrowIfFailed(m_swapChain->ResizeBuffers(FrameCount, (UINT)m_viewport.Width, (UINT)m_viewport.Height, desc.BufferDesc.Format, desc.Flags));
+
+    m_frameIndex = 0;
 
     // Resize Render Target Views (RTV)
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
@@ -459,106 +419,13 @@ void D3D12Motor::OnResize(HWND hwnd) {
         m_device->CreateRenderTargetView(m_renderTargets[i].Get(), nullptr, rtvHeapHandle);
         rtvHeapHandle.Offset(1, m_rtvDescriptorSize);
     }
-   
+
+    CreateDepthBuffer();
+
+    MoveToNextFrame();
+
     // Reset the frame index to the current back buffer index.
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
-}
-
-void D3D12Motor::CreateVertexBuffer(std::vector<Vertex> verticles, std::vector<Meshlet> meshlets, std::vector<uint8_t> uniqueVertexIB, std::vector<MeshletTriangle> primitiveIndices) {
-
-    m_modelMeshletCount = meshlets.size();
-    m_modelVertexCount = meshlets[meshlets.size()-1].VertCount;
-    m_modelPrimitiveCount = meshlets[meshlets.size() - 1].PrimCount;
-
-    // 12.1 Define the geometry for a triangle
-    const UINT vertexBufferSize = (UINT)verticles.size() * sizeof(Vertex);
-
-    ComPtr<ID3D12Resource> m_uploadVertexBuffer;
-    // 12.2 Create Upload heap 
-    CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
-    ThrowIfFailed(m_device->CreateCommittedResource(
-        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-        D3D12_HEAP_FLAG_NONE,
-        &desc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(&m_uploadVertexBuffer)));
-
-    // 12.3 Create Default heap, the actual buffer resource.
-    ThrowIfFailed(m_device->CreateCommittedResource(
-        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-        D3D12_HEAP_FLAG_NONE,
-        &desc,
-        D3D12_RESOURCE_STATE_COMMON,
-        nullptr,
-        IID_PPV_ARGS(&m_vertexBuffer)));
-
-    // 12.4 Copy the triangle data to the vertex buffer. Copy data from upload heap to Default heap
-    D3D12_SUBRESOURCE_DATA subResourceData = {};
-    subResourceData.pData = verticles.data();
-    subResourceData.RowPitch = vertexBufferSize;
-    subResourceData.SlicePitch = subResourceData.RowPitch;
-
-    UpdateSubresources(m_commandList.Get(), m_vertexBuffer.Get(), m_uploadVertexBuffer.Get(), 0, 0, 1, &subResourceData);
-    m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ));
-
-    CD3DX12_RESOURCE_DESC meshletDesc = CD3DX12_RESOURCE_DESC::Buffer(meshlets.size() * sizeof(meshlets[0]));
-    CD3DX12_RESOURCE_DESC vertexIndexDesc = CD3DX12_RESOURCE_DESC::Buffer((UINT)uniqueVertexIB.size() * sizeof(std::uint16_t));
-    CD3DX12_RESOURCE_DESC primitiveDesc = CD3DX12_RESOURCE_DESC::Buffer(primitiveIndices.size() * sizeof(primitiveIndices[0]));
-
-    CD3DX12_HEAP_PROPERTIES defaultHeap = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    ThrowIfFailed(m_device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &meshletDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_meshletBuffer)));
-    ThrowIfFailed(m_device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &vertexIndexDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_indexBuffer)));
-    ThrowIfFailed(m_device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &primitiveDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_primitiveBuffer)));
-
-
-    ComPtr<ID3D12Resource> m_uploadeshletBuffer;
-    ComPtr<ID3D12Resource> m_uploadIndexBuffer;
-    ComPtr<ID3D12Resource> m_uploadPrimitiveBuffer;
-
-    CD3DX12_HEAP_PROPERTIES uploadHeap = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    ThrowIfFailed(m_device->CreateCommittedResource(&uploadHeap, D3D12_HEAP_FLAG_NONE, &meshletDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_uploadeshletBuffer)));
-    ThrowIfFailed(m_device->CreateCommittedResource(&uploadHeap, D3D12_HEAP_FLAG_NONE, &vertexIndexDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_uploadIndexBuffer)));
-    ThrowIfFailed(m_device->CreateCommittedResource(&uploadHeap, D3D12_HEAP_FLAG_NONE, &primitiveDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&m_uploadPrimitiveBuffer)));
-
-    {
-        uint8_t* memory = nullptr;
-        m_uploadeshletBuffer->Map(0, nullptr, reinterpret_cast<void**>(&memory));
-        std::memcpy(memory, meshlets.data(), meshlets.size() * sizeof(meshlets[0]));
-        m_uploadeshletBuffer->Unmap(0, nullptr);
-    }
-
-    {
-        uint8_t* memory = nullptr;
-        m_uploadIndexBuffer->Map(0, nullptr, reinterpret_cast<void**>(&memory));
-        std::memcpy(memory, uniqueVertexIB.data(), uniqueVertexIB.size());
-        m_uploadIndexBuffer->Unmap(0, nullptr);
-    }
-
-    {
-        uint8_t* memory = nullptr;
-        m_uploadPrimitiveBuffer->Map(0, nullptr, reinterpret_cast<void**>(&memory));
-        std::memcpy(memory, primitiveIndices.data(), primitiveIndices.size() * sizeof(primitiveIndices[0]));
-        m_uploadPrimitiveBuffer->Unmap(0, nullptr);
-    }
-
-    D3D12_RESOURCE_BARRIER postCopyBarriers[3];
-
-    m_commandList->CopyResource(m_indexBuffer.Get(), m_uploadIndexBuffer.Get());
-    postCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(m_indexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-    m_commandList->CopyResource(m_meshletBuffer.Get(), m_uploadeshletBuffer.Get());
-    postCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_meshletBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-    m_commandList->CopyResource(m_primitiveBuffer.Get(), m_uploadPrimitiveBuffer.Get());
-    postCopyBarriers[2] = CD3DX12_RESOURCE_BARRIER::Transition(m_primitiveBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-    // Close the Commandlist and Execute (Copy data from upload heap to Default heap)
-    ThrowIfFailed(m_commandList->Close());
-    ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
-    m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
-
-    WaitForGpu();
 }
 
 void D3D12Motor::ThrowIfFailed(HRESULT hr) {

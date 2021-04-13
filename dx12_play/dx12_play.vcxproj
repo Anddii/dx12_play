@@ -158,11 +158,13 @@
     <ClCompile Include="d3d12_motor.cpp" />
     <ClCompile Include="game.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="mesh.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3d12_motor.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="game.h" />
+    <ClInclude Include="mesh.h" />
     <ClInclude Include="shared.h" />
     <ClInclude Include="texture.h" />
     <ClInclude Include="utils.h" />
@@ -225,6 +227,7 @@
   <ImportGroup Label="ExtensionTargets">
     <Import Project="..\packages\directxtk12_desktop_2017.2021.1.10.1\build\native\directxtk12_desktop_2017.targets" Condition="Exists('..\packages\directxtk12_desktop_2017.2021.1.10.1\build\native\directxtk12_desktop_2017.targets')" />
     <Import Project="..\packages\directxmesh_desktop_win10.2021.1.10.1\build\native\directxmesh_desktop_win10.targets" Condition="Exists('..\packages\directxmesh_desktop_win10.2021.1.10.1\build\native\directxmesh_desktop_win10.targets')" />
+    <Import Project="..\packages\cereal.1.0.0\build\native\cereal.targets" Condition="Exists('..\packages\cereal.1.0.0\build\native\cereal.targets')" />
   </ImportGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
@@ -232,5 +235,6 @@
     </PropertyGroup>
     <Error Condition="!Exists('..\packages\directxtk12_desktop_2017.2021.1.10.1\build\native\directxtk12_desktop_2017.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\directxtk12_desktop_2017.2021.1.10.1\build\native\directxtk12_desktop_2017.targets'))" />
     <Error Condition="!Exists('..\packages\directxmesh_desktop_win10.2021.1.10.1\build\native\directxmesh_desktop_win10.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\directxmesh_desktop_win10.2021.1.10.1\build\native\directxmesh_desktop_win10.targets'))" />
+    <Error Condition="!Exists('..\packages\cereal.1.0.0\build\native\cereal.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\cereal.1.0.0\build\native\cereal.targets'))" />
   </Target>
 </Project>

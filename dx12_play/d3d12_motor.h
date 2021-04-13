@@ -14,6 +14,7 @@
 #include "vertex.h"
 #include "texture.h"
 #include "utils.h"
+#include "mesh.h"
 
 using namespace Microsoft::WRL;
 using namespace DirectX;
@@ -44,13 +45,6 @@ private:
 
 	float m_aspectRatio;
 
-	struct SceneConstantBuffer
-	{
-		XMFLOAT4X4 gWorld = {};
-		XMFLOAT4X4 gViewProj = {};
-		float gAspectRatio = 1;
-	};
-
 	struct MeshConstantBuffer
 	{
 		int meshOffset = 0;
@@ -60,73 +54,47 @@ private:
 	D3D12_VIEWPORT m_viewport;
 	D3D12_RECT m_scissorRect;
 	ComPtr<IDXGISwapChain3> m_swapChain;
-	ComPtr<ID3D12Device2> m_device;
-	ComPtr<ID3D12Resource> m_renderTargets[2];
+	
+	ComPtr<ID3D12Resource> m_renderTargets[FrameCount];
 	ComPtr<ID3D12Resource> m_depthStencilBuffer;
-	ComPtr<ID3D12CommandAllocator> m_commandAllocators[FrameCount];
 	ComPtr<ID3D12CommandAllocator> m_bundleAllocator;
-	ComPtr<ID3D12CommandQueue> m_commandQueue;
 	ComPtr<ID3D12RootSignature> m_rootSignature;
 	ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_srvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_cbvHeap;
 	ComPtr<ID3D12PipelineState> m_pipelineState;
-	ComPtr<ID3D12GraphicsCommandList6> m_commandList;
 	ComPtr<ID3D12GraphicsCommandList6> m_bundle;
 
 	UINT m_rtvDescriptorSize;
 
-	// Model resources.
-	ComPtr<ID3D12Resource> m_meshletBuffer;
-	ComPtr<ID3D12Resource> m_vertexBuffer;
-	ComPtr<ID3D12Resource> m_indexBuffer;
-	ComPtr<ID3D12Resource> m_primitiveBuffer;
-
-	int m_modelVertexCount;
-	int m_modelPrimitiveCount;
-	int m_modelMeshletCount;
-	int m_instanceCount = 9;
-
-	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
-	D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
-
-	ComPtr<ID3D12Resource> m_constantBuffer;
-	SceneConstantBuffer m_constantBufferData;
-	UINT8* m_pCbvDataBegin;
-
 	// Synchronization objects.
-	UINT m_frameIndex;
 	HANDLE m_fenceEvent;
 	ComPtr<ID3D12Fence> m_fence;
 	UINT64 m_fenceValues[FrameCount];
 
 	void CreateDepthBuffer();
 	void PopulateCommandList();
-	void WaitForGpu();
 	void MoveToNextFrame();
 	void UpdateViewport(HWND hwnd);
-	void RegenerateInstances();
-	void ThrowIfFailed(HRESULT hr);
-
-	UINT CalcConstantBufferByteSize(UINT byteSize)
-	{
-		// Constant buffers must be a multiple of the minimum hardware allocation size (usually 256 bytes).
-		return (byteSize + 255) & ~255;
-	}
 
 public:
+
+	UINT m_frameIndex;
+	ComPtr<ID3D12Device2> m_device;
+	ComPtr<ID3D12GraphicsCommandList6> m_commandList;
+	ComPtr<ID3D12CommandQueue> m_commandQueue;
+	ComPtr<ID3D12CommandAllocator> m_commandAllocators[FrameCount];
+
+	std::vector<Mesh> mesh = std::vector<Mesh>();
+
 	D3D12Motor() {}
 	~D3D12Motor();
 	void LoadPipeline(HWND hwnd);
 	void LoadAssets();
-	void CreateVertexBuffer(
-		std::vector<Vertex> verticles, 
-		std::vector<Meshlet> meshlets, 
-		std::vector<uint8_t> uniqueVertexIB,
-		std::vector<MeshletTriangle> primitiveIndices);
 	void OnUpdate();
 	void OnRender();
 	void OnResize(HWND hwnd);
+	void WaitForGpu();
+	void ThrowIfFailed(HRESULT hr);
 };
-

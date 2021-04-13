@@ -1,7 +1,7 @@
 #include "shared.h"
-#define ROOT_SIG "CBV(b0), RootConstants(b1, num32bitconstants=3), SRV(t0), SRV(t1), SRV(t2), SRV(t3)"
+#define ROOT_SIG "RootConstants(b1, num32bitconstants=3), SRV(t0), SRV(t1), SRV(t2), SRV(t3), SRV(t4)"
 
-cbuffer cb_object : register(b0)
+struct Instance
 {
 	float4x4 gWorld;
 	float4x4 gViewProj;
@@ -36,19 +36,24 @@ struct MSVert
 	uint meshletIndex : COLOR0;
 };
 
-float4 TransformPosition(float4 pos)
-{
-	pos.w = 1.0f;
-	pos = mul(pos, gWorld);
-	pos = mul(pos, gViewProj);
-	pos.x /= aspectRatio;
-	return pos;
-}
 
 StructuredBuffer<Meshlet> Meshlets : register(t0);
 StructuredBuffer<MSVertIn> Vertices : register(t1);
 ByteAddressBuffer UniqueVertexIndices : register(t2);
 StructuredBuffer<uint> PrimitiveIndices : register(t3);
+
+StructuredBuffer<Instance> Instances : register(t4);
+
+
+float4 TransformPosition(float4 pos, int instanceIndex)
+{
+	Instance n = Instances[InstanceOffset + instanceIndex];
+	float4 positionWS = mul(float4(pos.xyz, 1), n.gWorld);
+
+	positionWS = mul(positionWS, n.gViewProj);
+	positionWS.x /= n.aspectRatio;
+	return positionWS;
+}
 
 uint GetVertexIndex(Meshlet m, uint localIndex)
 {
@@ -120,11 +125,7 @@ void MSMain(
 		uint instanceIndex = startInstance + instanceId;	
 
 		float4 pos = float4(Vertices[vertexIndex].pos.xyz, 1.0f);
-
-		pos.z += -1.0f * round(instanceIndex / 9);
-		pos = TransformPosition(pos);
-		//pos.x += 1 * instanceIndex;
-		pos.x += 1 * instanceIndex % 9;
+		pos = TransformPosition(pos, instanceIndex);
 
 		outVerts[groupThreadId].pos = pos;
 		outVerts[groupThreadId].normal = Vertices[vertexIndex].color;

@@ -47,3 +47,9 @@ inline HRESULT ReadDataFromFile(LPCWSTR filename, byte** data, UINT* size)
 
     return S_OK;
 }
+
+inline UINT CalcConstantBufferByteSize(UINT byteSize)
+{
+    // Constant buffers must be a multiple of the minimum hardware allocation size (usually 256 bytes).
+    return (byteSize + 255) & ~255;
+}

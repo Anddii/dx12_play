@@ -1,38 +1,45 @@
 #include "game.h"
 
-void Game::Init() 
+void Game::Init(std::string fileName) 
 {
-    auto mesh = std::make_unique<WaveFrontReader<uint16_t>>();
-
-    if (FAILED(mesh->Load(L"obj/barrel.obj"))) 
     {
-        // Error
-        return;
+        std::ifstream is(fileName, std::ios::binary);
+        Mesh newMesh(L"");
+        try {
+            cereal::BinaryInputArchive archive(is);
+            archive(newMesh);
+        }
+        catch (const std::exception& e) {
+            OutputDebugStringA(e.what());
+            return;
+        }
+        newMesh.m_instanceCount = 3;
+        newMesh.InitMesh(m_motor->m_device.Get(), m_motor->m_commandQueue.Get(), m_motor->m_commandAllocators[m_motor->m_frameIndex].Get(), m_motor->m_commandList.Get());
+
+        newMesh.SetPosition(0, XMVectorSet(0, 0, 0, 0));
+        newMesh.SetPosition(1, XMVectorSet(1, 0, 0, 0));
+        newMesh.SetPosition(2, XMVectorSet(-1, 0, 0, 0));
+
+        m_motor->mesh.push_back(newMesh);
     }
-
-    size_t nFaces = mesh->indices.size() / 3;
-    size_t nVerts = mesh->vertices.size();
-
-    std::unique_ptr<XMFLOAT3[]> pos(new XMFLOAT3[nVerts]);
-    for (size_t j = 0; j < nVerts; ++j)
-        pos[j] = mesh->vertices[j].position;
-
-    std::vector<Meshlet> meshlets;
-    std::vector<uint8_t> uniqueVertexIB;
-    std::vector<MeshletTriangle> primitiveIndices;
-    if (FAILED(ComputeMeshlets(mesh->indices.data(), nFaces,
-        pos.get(), nVerts,
-        nullptr,
-        meshlets, uniqueVertexIB, primitiveIndices, MAX_VERTS, MAX_PRIMS)))
     {
-        // Error
+        Mesh newMesh(L"obj/o.obj");
+        newMesh.m_instanceCount = 4;
+        newMesh.InitMesh(m_motor->m_device.Get(), m_motor->m_commandQueue.Get(), m_motor->m_commandAllocators[m_motor->m_frameIndex].Get(), m_motor->m_commandList.Get());
+        newMesh.SetPosition(0, XMVectorSet(1, -1, 1, 0));
+        newMesh.SetPosition(1, XMVectorSet(1, 1, -1, 0));
+        newMesh.SetPosition(2, XMVectorSet(-1, -1, -1, 0));
+        newMesh.SetPosition(3, XMVectorSet(-1, 1, 1, 0));
+        m_motor->mesh.push_back(newMesh);
     }
-
-    std::vector<Vertex> triangleVertices = {};
-    for (size_t j = 0; j < nVerts; ++j)
-        triangleVertices.push_back({ mesh->vertices[j].position, mesh->vertices[j].normal });
-
-    m_motor->CreateVertexBuffer(triangleVertices, meshlets, uniqueVertexIB, primitiveIndices);
+    //{
+    //    std::shared_ptr<Mesh> newMesh = std::shared_ptr<Mesh>(new Mesh(L"obj/o.obj"));
+    //    newMesh->m_instanceCount = 2;
+    //    newMesh->InitMesh(m_motor->m_device.Get(), m_motor->m_commandQueue.Get(), m_motor->m_commandAllocators[m_motor->m_frameIndex].Get(), m_motor->m_commandList.Get());
+    //    newMesh->SetPosition(0, XMVectorSet(0, -1, -1, 0));
+    //    newMesh->SetPosition(1, XMVectorSet(0, 1, -1, 0));
+    //    m_motor->mesh.push_back(newMesh);
+    //}
 }
 
 void Game::Update()

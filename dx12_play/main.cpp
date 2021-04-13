@@ -13,8 +13,12 @@ namespace
 };
 
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR pCmdLine, int nCmdShow)
 {
+    std::string s1 = pCmdLine;
+
+
+    std::cout << s1 << std::endl;;
 
 	// Register window class
 	const wchar_t CLASS_NAME[] = L"Sample Window";
@@ -31,7 +35,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     HWND hwnd = CreateWindowEx(
         0,                              // Optional window styles.
         CLASS_NAME,                     // Window class
-        L"Learn to Program Windows",    // Window text
+        L"D12",    // Window text
         WS_OVERLAPPEDWINDOW,            // Window style
 
         // Size and position
@@ -55,7 +59,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     motor->LoadAssets();
 
     game = std::shared_ptr<Game>(new Game(motor));
-    game->Init();
+    game->Init(s1);
 
     // Run the message loop.
     MSG msg = { };
