@@ -16,9 +16,12 @@ namespace
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR pCmdLine, int nCmdShow)
 {
     std::string s1 = pCmdLine;
+    std::cout << s1 << std::endl;
 
-
-    std::cout << s1 << std::endl;;
+    if (s1 == "") {
+        MessageBox(NULL, L"No command-line arguments!", L"Error", MB_ICONERROR | MB_OK);
+        return 0;
+    }
 
 	// Register window class
 	const wchar_t CLASS_NAME[] = L"Sample Window";
@@ -35,7 +38,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR pCmdLine, 
     HWND hwnd = CreateWindowEx(
         0,                              // Optional window styles.
         CLASS_NAME,                     // Window class
-        L"D12",    // Window text
+        L"View Meshlets",    // Window text
         WS_OVERLAPPEDWINDOW,            // Window style
 
         // Size and position
@@ -59,8 +62,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR pCmdLine, 
     motor->LoadAssets();
 
     game = std::shared_ptr<Game>(new Game(motor));
-    game->Init(s1);
 
+    try
+    {
+        game->Init(s1, hwnd);
+    }
+    catch (const std::exception& e)
+    {
+        motor.reset();
+        //std::string ss = e.what();
+        //std::wstring sw(ss.begin(), ss.end());
+    }
     // Run the message loop.
     MSG msg = { };
     while (WM_QUIT != msg.message) {
@@ -77,6 +89,40 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
     {
+    case WM_ACTIVATEAPP:
+        Keyboard::ProcessMessage(uMsg, wParam, lParam);
+        Mouse::ProcessMessage(uMsg, wParam, lParam);
+        break;
+
+    case WM_INPUT:
+    case WM_MOUSEMOVE:
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONUP:
+    case WM_RBUTTONDOWN:
+    case WM_RBUTTONUP:
+    case WM_MBUTTONDOWN:
+    case WM_MBUTTONUP:
+    case WM_MOUSEWHEEL:
+    case WM_XBUTTONDOWN:
+    case WM_XBUTTONUP:
+    case WM_MOUSEHOVER:
+        Mouse::ProcessMessage(uMsg, wParam, lParam);
+        break;
+
+    case WM_KEYDOWN:
+    case WM_KEYUP:
+    case WM_SYSKEYUP:
+        Keyboard::ProcessMessage(uMsg, wParam, lParam);
+        if (wParam == VK_ESCAPE)
+        {
+            PostQuitMessage(0);
+        }
+        break;
+
+    case WM_SYSKEYDOWN:
+        Keyboard::ProcessMessage(uMsg, wParam, lParam);
+        break;
+
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
@@ -87,6 +133,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_PAINT:
         if (motor)
         {
+            game->Update();
             motor->OnUpdate();
             motor->OnRender();
         }

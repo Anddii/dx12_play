@@ -36,8 +36,10 @@ public:
 
 	HRESULT InitMesh(ID3D12Device* device, ID3D12CommandQueue* cmdQueue, ID3D12CommandAllocator* cmdAlloc, ID3D12GraphicsCommandList* cmdList);
 	void RegenerateInstances(ID3D12Device* device);
-	void SetPosition(int instanceOffset, XMVECTOR position);
 
+	void SetPosition(int instanceOffset, XMVECTOR position);
+	void SetRotation(int instanceOffset, XMVECTOR rotation);
+	void SetCameraPosition(int instanceOffset, XMVECTOR position);
 
 	template <class Archive>
 	void serialize(Archive& ar)
@@ -50,6 +52,12 @@ public:
 	std::vector<uint8_t> m_uniqueVertexIB;
 	std::vector<MeshletTriangle> m_primitiveIndices;
 
+	XMVECTOR m_position = XMVectorSet(0,0,0,0);
+	XMVECTOR m_rotation = XMVectorSet(0, 0, 0, 0);
+	XMVECTOR m_scale = XMVectorSet(1, 1, 1, 0);
+
+	XMVECTOR m_cameraPosition = XMVectorSet(0, 0, 5.f, 0);
+
 private:
 
 	struct SceneConstantBuffer
@@ -61,6 +69,8 @@ private:
 
 	SceneConstantBuffer* m_instanceData = nullptr;
 	
+	void UpdateWorld(int instanceOffset);
+	void UpdateViewProj(int instanceOffset);
 	void ThrowIfFailed(HRESULT hr);
 
 };

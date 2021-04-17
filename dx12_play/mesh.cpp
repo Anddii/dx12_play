@@ -29,7 +29,6 @@ Mesh::Mesh(std::wstring fileName) {
 
 HRESULT Mesh::InitMesh(ID3D12Device* device, ID3D12CommandQueue* cmdQueue, ID3D12CommandAllocator* cmdAlloc, ID3D12GraphicsCommandList* cmdList)
 {
-
     // Populate our command list
     cmdList->Reset(cmdAlloc, nullptr);
 
@@ -180,39 +179,59 @@ void Mesh::RegenerateInstances(ID3D12Device* device) {
     // Regenerate the instances in our scene.
     for (uint32_t i = 0; i < m_instanceCount; ++i)
     {
-        // Position
-        XMVECTOR location = XMVectorSet(0, 0, 1, 1);
-        XMMATRIX world = XMMatrixTranslationFromVector(location);
-
         auto& inst = m_instanceData[i];
 
-        // MOVE TO CAMERA? 
-        XMFLOAT4X4 mView = {};
-        XMFLOAT4X4 mProj = {};
-
-        XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * DirectX::XM_PI, 1, 0.1f, 100.0f);
-        XMStoreFloat4x4(&mProj, P);
-
-        XMVECTOR pos = XMVectorSet(0.f, 2.f, 5.f, 1.0f);
-        XMVECTOR target = XMVectorSet(0.f, 0.0f, -5, 1.0f);
-        XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
-        XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
-        XMMATRIX proj = XMLoadFloat4x4(&mProj);
-
-        XMStoreFloat4x4(&mView, view);
-        XMMATRIX viewProj = XMMatrixMultiply(view, proj);
-
-        XMStoreFloat4x4(&inst.gViewProj, DirectX::XMMatrixTranspose(viewProj));
-        XMStoreFloat4x4(&inst.gWorld, XMMatrixTranspose(world));
-        inst.gAspectRatio = 1378.00000 / 750.000000;
+        UpdateWorld(i);
+        UpdateViewProj(i);
+        inst.gAspectRatio = 1378.00000 / 750.000000;  // HUOMHUOM HUOM TODO 
     }
 }
 
 void Mesh::SetPosition(int instanceOffset, XMVECTOR position) {
     auto& inst = m_instanceData[instanceOffset];
-    XMMATRIX world = XMMatrixTranslationFromVector(position);
-    XMStoreFloat4x4(&inst.gWorld, XMMatrixTranspose(world));
+    m_position = position;
+    UpdateWorld(instanceOffset);
+}
+
+void Mesh::SetRotation(int instanceOffset, XMVECTOR rotation) {
+    auto& inst = m_instanceData[instanceOffset];
+    m_rotation = rotation;
+    UpdateWorld(instanceOffset);
+}
+
+void Mesh::UpdateWorld(int instanceOffset) {
+    auto& inst = m_instanceData[instanceOffset];
+    XMMATRIX world = XMMatrixTranslationFromVector(m_position);
+    XMStoreFloat4x4(&inst.gWorld, XMMatrixScaling(1, 1, 1)* XMMatrixTranspose(world)*XMMatrixRotationRollPitchYawFromVector(m_rotation));
+}
+
+void Mesh::SetCameraPosition(int instanceOffset, XMVECTOR position) {
+    auto& inst = m_instanceData[instanceOffset];
+    m_cameraPosition = position;
+    UpdateViewProj(instanceOffset);
+}
+
+void Mesh::UpdateViewProj(int instanceOffset) {
+    auto& inst = m_instanceData[instanceOffset];
+    // MOVE TO CAMERA? 
+    XMFLOAT4X4 mView = {};
+    XMFLOAT4X4 mProj = {};
+
+    XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * DirectX::XM_PI, 1, 0.1f, 100.0f);
+    XMStoreFloat4x4(&mProj, P);
+
+    XMFLOAT4 v2F;    //the float where we copy the v2 vector members
+    XMStoreFloat4(&v2F, m_cameraPosition);   //the function used to copy
+    XMVECTOR target = XMVectorSet(v2F.x, v2F.y, -v2F.z, 1.0f);
+    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+    XMMATRIX view = XMMatrixLookAtLH(m_cameraPosition, target, up);
+    XMMATRIX proj = XMLoadFloat4x4(&mProj);
+
+    XMStoreFloat4x4(&mView, view);
+    XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+
+    XMStoreFloat4x4(&inst.gViewProj, DirectX::XMMatrixTranspose(viewProj));
 }
 
 void Mesh::ThrowIfFailed(HRESULT hr) {
