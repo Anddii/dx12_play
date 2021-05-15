@@ -1,10 +1,10 @@
 # dx12_play is my main repository messing with DirectX 12.
 
-Purpose of this repo is to track my progress of learning DirectX and graphics programming.
+The purpose of this repo is to track my progress of learning DirectX and graphics programming.
 
 New features are implemented to their own branches.
 
-Main branch is only a simple app to draw a trianlge and navigate trough different branches.
+Main branch is only a simple app to draw a triangle and navigate trough different branches.
 
 ## Links
 ### [1. Triangle](https://github.com/antti-kyto/dx12_play/tree/1_Triangle)
