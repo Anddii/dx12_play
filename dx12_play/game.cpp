@@ -20,8 +20,12 @@ void Game::Init(HWND window)
         
         m_motor->mesh[1].SetScale(0, XMVectorSet(0.6f, 0.6f, 0.6f, 0.0f));
         m_motor->mesh[1].SetPosition(0, XMVectorSet(0, 7.7f, 0, 0));
+
+        m_motor->mesh[1].SetRotation(1, XMVectorSet(0.0f, XMConvertToRadians(90), 0, 0));
         m_motor->mesh[1].SetPosition(1, XMVectorSet(15, 7.7f, 10, 0));
-        m_motor->mesh[1].SetPosition(2, XMVectorSet(0, 7.7f, -10, 0));
+
+        m_motor->mesh[1].SetRotation(2, XMVectorSet(XMConvertToRadians(90), 0, 0, 0));
+        m_motor->mesh[1].SetPosition(2, XMVectorSet(0, 1.5f, -15, 0));
     }
     {
         Mesh newMesh("./models/pillar.me", 10);
@@ -77,8 +81,6 @@ void Game::Update()
     {
 
     }
-
-
     int cameraSpeed = 14;
     if (kb.D)
     {
@@ -106,7 +108,7 @@ void Game::Update()
 
         m_motor->m_cameraPosition = XMVectorSet(v2F.x, v2F.y + cameraSpeed * deltaTime.count(), v2F.z, 0);
     }
-    if (kb.F)
+    if (kb.Q)
     {
         XMVECTOR v2 = m_motor->m_cameraPosition;
         XMFLOAT4 v2F;    //the float where we copy the v2 vector members
@@ -124,7 +126,6 @@ void Game::Update()
     }
 
     auto mouse = m_mouse->GetState();
-
     if (m_first)
     {
         m_mousePos = Pos(mouse.x, mouse.y);

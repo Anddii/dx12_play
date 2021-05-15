@@ -169,10 +169,16 @@ void Mesh::RegenerateInstances(ID3D12Device* device) {
 
     m_instanceUpload->Map(0, nullptr, reinterpret_cast<void**>(&m_instanceData));
 
+    m_position.resize(m_instanceCount);
+    m_rotation.resize(m_instanceCount);
+    m_scale.resize(m_instanceCount);
+
     // Regenerate the instances in our scene.
     for (uint32_t i = 0; i < m_instanceCount; ++i)
     {
         auto& inst = m_instanceData[i];
+
+        m_scale[i] = XMVectorSet(1, 1, 1, 1);
 
         UpdateWorld(i);
         UpdateViewProj(i);
@@ -182,26 +188,26 @@ void Mesh::RegenerateInstances(ID3D12Device* device) {
 
 void Mesh::SetPosition(int instanceOffset, XMVECTOR position) {
     auto& inst = m_instanceData[instanceOffset];
-    m_position = position;
+    m_position[instanceOffset] = position;
     UpdateWorld(instanceOffset);
 }
 
 void Mesh::SetRotation(int instanceOffset, XMVECTOR rotation) {
     auto& inst = m_instanceData[instanceOffset];
-    m_rotation = rotation;
+    m_rotation[instanceOffset] = rotation;
     UpdateWorld(instanceOffset);
 }
 
 void Mesh::SetScale(int instanceOffset, XMVECTOR scale) {
     auto& inst = m_instanceData[instanceOffset];
-    m_scale = scale;
+    m_scale[instanceOffset] = scale;
     UpdateWorld(instanceOffset);
 }
 
 void Mesh::UpdateWorld(int instanceOffset) {
     auto& inst = m_instanceData[instanceOffset];
-    XMMATRIX world = XMMatrixTranslationFromVector(m_position);
-    XMStoreFloat4x4(&inst.gWorld, XMMatrixScalingFromVector(m_scale)* XMMatrixTranspose(world)*XMMatrixRotationRollPitchYawFromVector(m_rotation));
+    XMMATRIX world = XMMatrixTranslationFromVector(m_position[instanceOffset]);
+    XMStoreFloat4x4(&inst.gWorld, XMMatrixScalingFromVector(m_scale[instanceOffset])* XMMatrixTranspose(world)*XMMatrixRotationRollPitchYawFromVector(m_rotation[instanceOffset]));
 }
 
 void Mesh::SetCameraPosition(int instanceOffset, XMVECTOR position) {

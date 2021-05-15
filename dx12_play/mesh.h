@@ -53,9 +53,9 @@ public:
 	std::vector<uint8_t> m_uniqueVertexIB;
 	std::vector<MeshletTriangle> m_primitiveIndices;
 
-	XMVECTOR m_position = XMVectorSet(0,0,0,0);
-	XMVECTOR m_rotation = XMVectorSet(0, 0, 0, 0);
-	XMVECTOR m_scale = XMVectorSet(1, 1, 1, 0);
+	std::vector<XMVECTOR> m_position = std::vector<XMVECTOR>();
+	std::vector<XMVECTOR> m_rotation = std::vector<XMVECTOR>();
+	std::vector<XMVECTOR> m_scale = std::vector<XMVECTOR>();
 
 	XMVECTOR m_cameraPosition = XMVectorSet(0, 0, 5.f, 0);
 
