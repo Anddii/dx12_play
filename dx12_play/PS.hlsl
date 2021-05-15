@@ -24,11 +24,12 @@ struct PSInput
 float4 PSMain(PSInput pIn) : SV_TARGET
 {
     uint MeshletIndex = pIn.meshletIndex;
-    float3 oColor = g_texture.Sample(g_sampler, pIn.uv).xyz;
+    float3 oColor = g_texture.Sample(g_sampler, pIn.uv).xyz; // TEXTURE COLOR
     oColor = float3(
         float(MeshletIndex & 1)+0.1,
         float(MeshletIndex & 3) / 4 + 0.1,
-        float(MeshletIndex & 7) / 8 + 0.1);
+        float(MeshletIndex & 7) / 8 + 0.1); // SHOW MESHLETS
+    oColor = float3(0.5, 0.5, 0.5); // TEMP COLOR
 
     // Diffuse
     float3 lightPos = float3(0.0f, 100000.0f, 10000.0f);

@@ -14,12 +14,14 @@ void Game::Init(HWND window)
         m_motor->mesh[0].SetScale(0, XMVectorSet(20, 1, 20, 0));
     }
     {
-        Mesh newMesh("./models/cube.me", 3);
+        Mesh newMesh("./models/horse.fbx.me", 3);
         newMesh.InitMesh(m_motor->m_device.Get(), m_motor->m_commandQueue.Get(), m_motor->m_commandAllocators[m_motor->m_frameIndex].Get(), m_motor->m_commandList.Get());
         m_motor->mesh.push_back(newMesh);
-        m_motor->mesh[1].SetPosition(0, XMVectorSet(0, 0, 0, 0));
-        m_motor->mesh[1].SetPosition(1, XMVectorSet(0, 0, 5, 0));
-        m_motor->mesh[1].SetPosition(2, XMVectorSet(0, 0, -5, 0));
+        
+        m_motor->mesh[1].SetScale(0, XMVectorSet(0.6f, 0.6f, 0.6f, 0.0f));
+        m_motor->mesh[1].SetPosition(0, XMVectorSet(0, 7.7f, 0, 0));
+        m_motor->mesh[1].SetPosition(1, XMVectorSet(15, 7.7f, 10, 0));
+        m_motor->mesh[1].SetPosition(2, XMVectorSet(0, 7.7f, -10, 0));
     }
     {
         Mesh newMesh("./models/pillar.me", 10);
