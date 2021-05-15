@@ -1,5 +1,5 @@
 #include "shared.h"
-#define ROOT_SIG "RootConstants(b1, num32bitconstants=3), SRV(t0), SRV(t1), SRV(t2), SRV(t3), SRV(t4)"
+#define ROOT_SIG "RootConstants(b1, num32bitconstants=3), CBV(b2), SRV(t0), SRV(t1), SRV(t2), SRV(t3), SRV(t4), DescriptorTable(SRV(t5)), StaticSampler(s0)"
 
 struct Instance
 {
@@ -15,6 +15,11 @@ cbuffer cb_object : register(b1)
 	int MeshletCount;
 };
 
+cbuffer cbPass : register(b2)
+{
+	float4x4 gViewProj;
+};
+
 struct Meshlet 
 {
 	uint32_t vertexCount;
@@ -26,31 +31,30 @@ struct Meshlet
 struct MSVertIn
 {
 	float3 pos;
-	float3 color;
+	float3 normal;
+	float2 uv;
 };
 
 struct MSVert
 {
 	float4 pos : SV_POSITION;
+	float2 uv : TEXCOORD;
 	float3 normal : NORMAL0;
 	uint meshletIndex : COLOR0;
 };
-
 
 StructuredBuffer<Meshlet> Meshlets : register(t0);
 StructuredBuffer<MSVertIn> Vertices : register(t1);
 ByteAddressBuffer UniqueVertexIndices : register(t2);
 StructuredBuffer<uint> PrimitiveIndices : register(t3);
-
 StructuredBuffer<Instance> Instances : register(t4);
-
 
 float4 TransformPosition(float4 pos, int instanceIndex)
 {
 	Instance n = Instances[InstanceOffset + instanceIndex];
 	float4 positionWS = mul(float4(pos.xyz, 1), n.gWorld);
 
-	positionWS = mul(positionWS, n.gViewProj);
+	positionWS = mul(positionWS, gViewProj);
 	positionWS.x /= n.aspectRatio;
 	return positionWS;
 }
@@ -117,7 +121,6 @@ void MSMain(
 	
 	if (groupThreadId < vertCount)
 	{
-
 		uint readIndex = groupThreadId % meshlet.vertexCount;  // Wrap our reads for packed instancing.
 		uint instanceId = groupThreadId / meshlet.vertexCount; // Instance index into this threadgroup's instances (only non-zero for packed threadgroups.)
 
@@ -128,7 +131,8 @@ void MSMain(
 		pos = TransformPosition(pos, instanceIndex);
 
 		outVerts[groupThreadId].pos = pos;
-		outVerts[groupThreadId].normal = Vertices[vertexIndex].color;
+		outVerts[groupThreadId].uv = Vertices[vertexIndex].uv;
+		outVerts[groupThreadId].normal = Vertices[vertexIndex].normal;
 		outVerts[groupThreadId].meshletIndex = meshletIndex;
 	}
 
@@ -136,7 +140,6 @@ void MSMain(
 	{
 		uint readIndex = groupThreadId % meshlet.primitiveCount;  // Wrap our reads for packed instancing.
 		uint instanceId = groupThreadId / meshlet.primitiveCount; // Instance index within this threadgroup (only non-zero in last meshlet threadgroups.)
-		//outIndices[groupThreadId] = cubeIndices[groupThreadId];
 		outIndices[groupThreadId] = GetPrimitive(meshlet, readIndex)+(meshlet.vertexCount * instanceId);
 	}
 }

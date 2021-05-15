@@ -40,6 +40,7 @@ private:
 	int frame = 0;
 
 	std::shared_ptr<Texture>m_texture;
+	std::shared_ptr<Texture>m_grill;
 
 	static const UINT FrameCount = 2;
 
@@ -57,6 +58,8 @@ private:
 	
 	ComPtr<ID3D12Resource> m_renderTargets[FrameCount];
 	ComPtr<ID3D12Resource> m_depthStencilBuffer;
+	ComPtr<ID3D12Resource> m_passConstantUpload;
+
 	ComPtr<ID3D12CommandAllocator> m_bundleAllocator;
 	ComPtr<ID3D12RootSignature> m_rootSignature;
 	ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
@@ -67,6 +70,7 @@ private:
 	ComPtr<ID3D12GraphicsCommandList6> m_bundle;
 
 	UINT m_rtvDescriptorSize;
+	UINT m_cbvSrvDescriptorSize;
 
 	// Synchronization objects.
 	HANDLE m_fenceEvent;
@@ -79,6 +83,17 @@ private:
 	void UpdateViewport(HWND hwnd);
 
 public:
+
+	struct PassConstantBuffer
+	{
+		XMFLOAT4X4 gViewProj = {};
+	};
+	PassConstantBuffer* m_passConstantBuffer = nullptr;
+	DirectX::XMVECTOR m_cameraPosition = DirectX::XMVectorSet(0, 0.0f, 10.0f, 1.0f);
+	DirectX::XMVECTOR m_cameraFront = DirectX::XMVectorSet(0, 0.0f, -1.0f, 1.0f);
+	DirectX::XMVECTOR m_cameraUp = DirectX::XMVectorSet(0, 1.0f, 0.0f, 1.0f);
+	float m_cameraYaw = -90;
+	float m_cameraPitch = 0;
 
 	UINT m_frameIndex;
 	ComPtr<ID3D12Device2> m_device;

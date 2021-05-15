@@ -30,6 +30,9 @@ public:
 
 		// Wait for the upload thread to terminate
 		uploadResourcesFinished.wait();
+
+		const auto toPBarrier = CD3DX12_RESOURCE_BARRIER::Transition(m_resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
 	}
 private:
 

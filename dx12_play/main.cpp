@@ -12,17 +12,8 @@ namespace
     std::shared_ptr<Game> game;
 };
 
-
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR pCmdLine, int nCmdShow)
 {
-    std::string s1 = pCmdLine;
-    std::cout << s1 << std::endl;
-
-    if (s1 == "") {
-        MessageBox(NULL, L"No command-line arguments!", L"Error", MB_ICONERROR | MB_OK);
-        return 0;
-    }
-
 	// Register window class
 	const wchar_t CLASS_NAME[] = L"Sample Window";
 
@@ -65,13 +56,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR pCmdLine, 
 
     try
     {
-        game->Init(s1, hwnd);
+        game->Init(hwnd);
     }
     catch (const std::exception& e)
     {
         motor.reset();
-        //std::string ss = e.what();
-        //std::wstring sw(ss.begin(), ss.end());
     }
     // Run the message loop.
     MSG msg = { };

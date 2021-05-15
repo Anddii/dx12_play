@@ -35,6 +35,7 @@ private:
 
 	std::chrono::system_clock::time_point m_then;
 	Pos m_mousePos;
+	bool m_first = true;
 	int m_scrollWheelValue;
 
 public:
@@ -43,7 +44,7 @@ public:
 
 	Game(std::shared_ptr<D3D12Motor> motor) { this->m_motor = motor; };
 	~Game() {};
-	void Init(std::string fileName, HWND window);
+	void Init(HWND window);
 	void Update();
 
 	std::unique_ptr<Mesh> mesh1;

@@ -18,7 +18,7 @@ using namespace Microsoft::WRL;
 class Mesh
 {
 public:
-	Mesh::Mesh(std::wstring fileName);
+	Mesh::Mesh(std::string fileName, int instanceCount = 1);
 
 	// Model resources.
 	ComPtr<ID3D12Resource> m_meshletBuffer;
@@ -39,6 +39,7 @@ public:
 
 	void SetPosition(int instanceOffset, XMVECTOR position);
 	void SetRotation(int instanceOffset, XMVECTOR rotation);
+	void SetScale(int instanceOffset, XMVECTOR scale);
 	void SetCameraPosition(int instanceOffset, XMVECTOR position);
 
 	template <class Archive>

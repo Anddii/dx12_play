@@ -1,30 +1,22 @@
 #include "mesh.h"
 
-Mesh::Mesh(std::wstring fileName) {
-    auto mesh = std::make_unique<WaveFrontReader<uint16_t>>();
-    if (FAILED(mesh->Load(fileName.c_str())))
-    {
-        // Error
+Mesh::Mesh(std::string fileName, int instanceCount) : m_instanceCount(instanceCount){
+
+    std::ifstream is(fileName, std::ios::binary);
+
+    if (!is) {
+        throw std::invalid_argument("received negative value");
         return;
     }
 
-    size_t nFaces = mesh->indices.size() / 3;
-    size_t nVerts = mesh->vertices.size();
-
-    std::unique_ptr<XMFLOAT3[]> pos(new XMFLOAT3[nVerts]);
-    for (size_t j = 0; j < nVerts; ++j)
-        pos[j] = mesh->vertices[j].position;
-
-    if (FAILED(ComputeMeshlets(mesh->indices.data(), nFaces,
-        pos.get(), nVerts,
-        nullptr,
-        m_meshlets, m_uniqueVertexIB, m_primitiveIndices, MAX_VERTS, MAX_PRIMS)))
-    {
-        // Error
+    try {
+        cereal::BinaryInputArchive archive(is);
+        archive(*this);
     }
-
-    for (size_t j = 0; j < nVerts; ++j)
-        m_triangleVertices.push_back({ mesh->vertices[j].position, mesh->vertices[j].normal });
+    catch (const std::exception& e) {
+        OutputDebugStringA(e.what());
+        return;
+    }
 }
 
 HRESULT Mesh::InitMesh(ID3D12Device* device, ID3D12CommandQueue* cmdQueue, ID3D12CommandAllocator* cmdAlloc, ID3D12GraphicsCommandList* cmdList)
@@ -77,7 +69,6 @@ HRESULT Mesh::InitMesh(ID3D12Device* device, ID3D12CommandQueue* cmdQueue, ID3D1
     ThrowIfFailed(device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &vertexIndexDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_indexBuffer)));
     ThrowIfFailed(device->CreateCommittedResource(&defaultHeap, D3D12_HEAP_FLAG_NONE, &primitiveDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_primitiveBuffer)));
 
-
     ComPtr<ID3D12Resource> m_uploadeshletBuffer;
     ComPtr<ID3D12Resource> m_uploadIndexBuffer;
     ComPtr<ID3D12Resource> m_uploadPrimitiveBuffer;
@@ -119,6 +110,8 @@ HRESULT Mesh::InitMesh(ID3D12Device* device, ID3D12CommandQueue* cmdQueue, ID3D1
     cmdList->CopyResource(m_primitiveBuffer.Get(), m_uploadPrimitiveBuffer.Get());
     postCopyBarriers[2] = CD3DX12_RESOURCE_BARRIER::Transition(m_primitiveBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
+    cmdList->ResourceBarrier(ARRAYSIZE(postCopyBarriers), postCopyBarriers);
+
     // Close the Commandlist and Execute (Copy data from upload heap to Default heap)
     cmdList->Close();
     ID3D12CommandList* ppCommandLists[] = { cmdList };
@@ -129,7 +122,7 @@ HRESULT Mesh::InitMesh(ID3D12Device* device, ID3D12CommandQueue* cmdQueue, ID3D1
     ThrowIfFailed(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)));
 
     cmdQueue->Signal(fence.Get(), 1);
-    int oo = fence->GetCompletedValue();
+
     // Wait for GPU
     if (fence->GetCompletedValue() != 1)
     {
@@ -199,10 +192,16 @@ void Mesh::SetRotation(int instanceOffset, XMVECTOR rotation) {
     UpdateWorld(instanceOffset);
 }
 
+void Mesh::SetScale(int instanceOffset, XMVECTOR scale) {
+    auto& inst = m_instanceData[instanceOffset];
+    m_scale = scale;
+    UpdateWorld(instanceOffset);
+}
+
 void Mesh::UpdateWorld(int instanceOffset) {
     auto& inst = m_instanceData[instanceOffset];
     XMMATRIX world = XMMatrixTranslationFromVector(m_position);
-    XMStoreFloat4x4(&inst.gWorld, XMMatrixScaling(1, 1, 1)* XMMatrixTranspose(world)*XMMatrixRotationRollPitchYawFromVector(m_rotation));
+    XMStoreFloat4x4(&inst.gWorld, XMMatrixScalingFromVector(m_scale)* XMMatrixTranspose(world)*XMMatrixRotationRollPitchYawFromVector(m_rotation));
 }
 
 void Mesh::SetCameraPosition(int instanceOffset, XMVECTOR position) {

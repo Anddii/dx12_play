@@ -97,7 +97,7 @@ void D3D12Motor::LoadPipeline(HWND hwnd) {
 
         // 5.2 Describe and create a shader resource view (SRV) heap for the texture(s).
         D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-        srvHeapDesc.NumDescriptors = 1;
+        srvHeapDesc.NumDescriptors = 2;
         srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
         srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_srvHeap)));
@@ -118,6 +118,8 @@ void D3D12Motor::LoadPipeline(HWND hwnd) {
         ThrowIfFailed(m_device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&m_dsvHeap)));
 
         m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+        m_cbvSrvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
     }
     // 6. Create frame resources.
     {
@@ -139,6 +141,23 @@ void D3D12Motor::LoadPipeline(HWND hwnd) {
     }
     // 8. A bundle allocator.
     ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_BUNDLE, IID_PPV_ARGS(&m_bundleAllocator)));
+
+    //
+    {
+        UINT instanceBufferSize = CalcConstantBufferByteSize(sizeof(PassConstantBuffer));
+        const CD3DX12_RESOURCE_DESC instanceBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(instanceBufferSize);
+        const CD3DX12_HEAP_PROPERTIES instanceBufferUploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+        // Create/re-create the instance buffer
+        ThrowIfFailed(m_device->CreateCommittedResource(
+            &instanceBufferUploadHeapProps,
+            D3D12_HEAP_FLAG_NONE,
+            &instanceBufferDesc,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            nullptr,
+            IID_PPV_ARGS(&m_passConstantUpload)
+        ));
+        m_passConstantUpload->Map(0, nullptr, reinterpret_cast<void**>(&m_passConstantBuffer));
+    }
 }
 
 void D3D12Motor::LoadAssets() {
@@ -166,7 +185,9 @@ void D3D12Motor::LoadAssets() {
         psoDesc.RTVFormats[0] = m_renderTargets[0]->GetDesc().Format;
         psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
         psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);    // CW front; cull back
-        psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+        psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+        //psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+        psoDesc.RasterizerState.FrontCounterClockwise = true;
         psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);         // Opaque
         psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT); // Less-equal depth test w/ writes; no stencil
         psoDesc.SampleMask = UINT_MAX;
@@ -184,27 +205,60 @@ void D3D12Motor::LoadAssets() {
     // 11. Create the command list
     ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
 
+    // 14. Create Texture (SRV)
+    {
+        m_texture = std::shared_ptr<Texture>(new Texture("textures/barrel.dds", m_device, m_commandQueue));
+        m_grill = std::shared_ptr<Texture>(new Texture("textures/image.dds", m_device, m_commandQueue));
+
+        D3D12_RESOURCE_BARRIER postCopyBarriers[2];
+        postCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(m_texture->m_resource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        postCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_grill->m_resource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        m_commandList->ResourceBarrier(ARRAYSIZE(postCopyBarriers), postCopyBarriers);
+        // Get pointer to the start of the heap.
+        CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(m_srvHeap->GetCPUDescriptorHandleForHeapStart());
+        // Describe and create a SRV for the texture.
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Format = m_texture->m_resource->GetDesc().Format;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MipLevels = 1;
+        m_device->CreateShaderResourceView(m_texture->m_resource.Get(), &srvDesc, hDescriptor);
+
+        // offset to next descriptor in heap
+        hDescriptor.Offset(1, m_cbvSrvDescriptorSize);
+
+        srvDesc.Format = m_grill->m_resource->GetDesc().Format;
+        srvDesc.Texture2D.MipLevels = m_grill->m_resource->GetDesc().MipLevels;
+        m_device->CreateShaderResourceView(m_grill->m_resource.Get(), &srvDesc, hDescriptor);
+    }
+
     // Transition the resource from its initial state to be used as a depth buffer.
     m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_depthStencilBuffer.Get(),
         D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
 
     // Create synchronization objects and wait until assets have been uploaded to the GPU.
+    ThrowIfFailed(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
+    m_fenceValues[m_frameIndex]++;
+
+    // Create an event handle to use for frame synchronization.
+    m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    if (m_fenceEvent == nullptr)
     {
-        ThrowIfFailed(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
-        m_fenceValues[m_frameIndex]++;
-
-        // Create an event handle to use for frame synchronization.
-        m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-        if (m_fenceEvent == nullptr)
-        {
-            ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
-        }
-
-        // Wait for the command list to execute; we are reusing the same command 
-        // list in our main loop but for now, we just want to wait for setup to 
-        // complete before continuing.
-        WaitForGpu();
+        ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
     }
+
+    // Wait for the command list to execute; we are reusing the same command 
+    // list in our main loop but for now, we just want to wait for setup to 
+    // complete before continuing.
+
+    // Close the Commandlist and Execute (Copy data from upload heap to Default heap)
+    m_commandList->Close();
+    ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
+    m_commandQueue->ExecuteCommandLists(1, ppCommandLists);
+
+    WaitForGpu();
+
+    int i = 0;
 }
 
 void D3D12Motor::CreateDepthBuffer()
@@ -242,10 +296,29 @@ void D3D12Motor::CreateDepthBuffer()
     dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
     dsvDesc.Texture2D.MipSlice = 0;
     m_device->CreateDepthStencilView(m_depthStencilBuffer.Get(), &dsvDesc, m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
+
+    if(m_commandList)
+        m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_depthStencilBuffer.Get(),
+            D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
 }
 
 void D3D12Motor::OnUpdate()
 {
+    DirectX::XMFLOAT4X4 mView = {};
+    DirectX::XMFLOAT4X4 mProj = {};
+
+    DirectX::XMMATRIX P = DirectX::XMMatrixPerspectiveFovLH(0.25f * DirectX::XM_PI, 1, 0.1f, 100.0f);
+    XMStoreFloat4x4(&mProj, P);
+
+    DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(m_cameraPosition, m_cameraPosition+m_cameraFront, m_cameraUp);
+    DirectX::XMMATRIX proj = DirectX::XMLoadFloat4x4(&mProj);
+
+    DirectX::XMStoreFloat4x4(&mView, view);
+    DirectX::XMMATRIX viewProj = DirectX::XMMatrixMultiply(view, proj);
+
+   // m_commandList->SetGraphicsRoot32BitConstant(0, viewProj, 2);
+    XMStoreFloat4x4(&m_passConstantBuffer->gViewProj, DirectX::XMMatrixTranspose(viewProj));
+
     frame++;
 }
 
@@ -279,7 +352,9 @@ void D3D12Motor::PopulateCommandList()
     // Set necessary state.
     m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
 
-    m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+    ID3D12DescriptorHeap* ppHeaps[] = { m_srvHeap.Get() };
+    m_commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
     m_commandList->RSSetViewports(1, &m_viewport);
     m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
@@ -293,6 +368,9 @@ void D3D12Motor::PopulateCommandList()
     const float clearColor[] = { 0.2f, 0.2f, 0.4f, 1.0f };
     m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     m_commandList->ClearDepthStencilView(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+    // Set PassVariables
+    m_commandList->SetGraphicsRootConstantBufferView(1, m_passConstantUpload->GetGPUVirtualAddress());
     
     for each (Mesh mesh in mesh)
     {
@@ -302,11 +380,15 @@ void D3D12Motor::PopulateCommandList()
         const auto toGenericBarrier = CD3DX12_RESOURCE_BARRIER::Transition(mesh.m_instanceBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ);
         m_commandList->ResourceBarrier(1, &toGenericBarrier);
 
-        m_commandList->SetGraphicsRootShaderResourceView(1, mesh.m_meshletBuffer->GetGPUVirtualAddress());
-        m_commandList->SetGraphicsRootShaderResourceView(2, mesh.m_vertexBuffer->GetGPUVirtualAddress());
-        m_commandList->SetGraphicsRootShaderResourceView(3, mesh.m_indexBuffer->GetGPUVirtualAddress());
-        m_commandList->SetGraphicsRootShaderResourceView(4, mesh.m_primitiveBuffer->GetGPUVirtualAddress());
-        m_commandList->SetGraphicsRootShaderResourceView(5, mesh.m_instanceBuffer->GetGPUVirtualAddress());
+        m_commandList->SetGraphicsRootShaderResourceView(2, mesh.m_meshletBuffer->GetGPUVirtualAddress());
+        m_commandList->SetGraphicsRootShaderResourceView(3, mesh.m_vertexBuffer->GetGPUVirtualAddress());
+        m_commandList->SetGraphicsRootShaderResourceView(4, mesh.m_indexBuffer->GetGPUVirtualAddress());
+        m_commandList->SetGraphicsRootShaderResourceView(5, mesh.m_primitiveBuffer->GetGPUVirtualAddress());
+        m_commandList->SetGraphicsRootShaderResourceView(6, mesh.m_instanceBuffer->GetGPUVirtualAddress());
+
+        CD3DX12_GPU_DESCRIPTOR_HANDLE tex(m_srvHeap->GetGPUDescriptorHandleForHeapStart());
+        tex.Offset(1, m_cbvSrvDescriptorSize);
+        m_commandList->SetGraphicsRootDescriptorTable(7, tex);
 
         int packCount = min(MAX_VERTS / mesh.m_modelVertexCount, MAX_PRIMS / mesh.m_modelPrimitiveCount);
         float groupsPerInstance = float(mesh.m_modelMeshletCount - 1) + 1.0f / packCount;
@@ -393,6 +475,7 @@ void D3D12Motor::UpdateViewport(HWND hwnd) {
 }
 
 void D3D12Motor::OnResize(HWND hwnd) {
+
     WaitForGpu();
 
     UpdateViewport(hwnd);
@@ -420,12 +503,20 @@ void D3D12Motor::OnResize(HWND hwnd) {
         rtvHeapHandle.Offset(1, m_rtvDescriptorSize);
     }
 
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get()));
     CreateDepthBuffer();
 
     MoveToNextFrame();
 
     // Reset the frame index to the current back buffer index.
     m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+
+    // Execute the command list.
+    ThrowIfFailed(m_commandList->Close());
+    ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
+    m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+
+    WaitForGpu();
 }
 
 void D3D12Motor::ThrowIfFailed(HRESULT hr) {
