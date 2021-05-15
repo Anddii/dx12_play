@@ -1,33 +1,23 @@
-# 1 Triangle
+# dx12_play is my main repository messing with DirectX 12.
 
-![alt text](./dx12_play/img/1_Triangle.png "Logo Title Text 1")
+Purpose of this repo is to track my progress of learning DirectX and graphics programming.
 
-Simple DirectX application. 
+New features are implemented to their own branches.
 
-## Init Pipeline
-1. Enable Debug layer
-2. Create The Device (Device is used to check feature support, and create all other  Direct3D  interface  objects  like  resources,  views,  and  command  lists)
-3. Describe and create the command queue (The  CPU  submits  commands  to  the  queue  through the Direct3D API using command lists)
-4. Describe and create the swap chain
-5. Create descriptor heaps. A descriptor heap can be thought of as an array of descriptors. Where each descriptor fully describes an object to the GPU
-   1. Describe and create a render target view (RTV) descriptor heap
-6. Create frame resources
-   1. Create a RTV for each frame
-7. Create A command allocator, manages the underlying storage for command listsand bundles
-8. Create A bundle allocator. We can store commands in the bundle.
+Main branch is only a simple app to draw a trianlge and navigate trough different branches.
 
-## Load Assets
-1. Create an empty root signature.  A graphics root signature defines what resources are bound to the graphics pipeline
-2. Create the pipeline state, which includes compiling and loading shaders
-   1. Compile and load shaders
-   2. Define the vertex input layout
-   3. Describe and create the graphics pipeline state object (PSO)
-3. Create the command list
-4. Create the vertex buffer
-   1. Define the geometry for a triangle
-   2. Create Upload heap for the CPU to write
-   3. Create Default heap, the actual buffer resource
-   4. Copy the triangle data to the vertex buffer. Copy data from upload heap to Default heap
-   5. 12.5 Initialize the vertex buffer view.
-5. Create and record the bundle
-6. Create synchronization objectsand wait until assets have been uploaded to the GPU
+## Links
+### [1. Triangle](https://github.com/antti-kyto/dx12_play/tree/1_Triangle)
+### [2. Texture](https://github.com/antti-kyto/dx12_play/tree/2_Texture)
+### [3. Constant Buffer](https://github.com/antti-kyto/dx12_play/tree/3_Constant_Buffer)
+Move Triangle in scene
+### [4. 3D Model](https://github.com/antti-kyto/dx12_play/tree/4_Draw_3D_Model)
+.obj file only
+### [5. Mesh Shader](https://github.com/antti-kyto/dx12_play/tree/5_Mesh_Shader)
+Draw Cube without any vertex or index buffer
+### [6. Mesh Shader and model](https://github.com/antti-kyto/dx12_play/tree/6_Mesh_Shader_Model)
+Draw Mesh with mesh shader
+### ~~7. Mesh Shader Load LOD~~
+### [8. Mesh Shader Instansing](https://github.com/antti-kyto/dx12_play/tree/8_Mesh_Shader_Instancing)
+
+## Screenshots
