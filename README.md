@@ -1,6 +1,6 @@
 # 1 Triangle
 
-![alt text](./img/4_Draw_3D_Model.png "Logo Title Text 1")
+![alt text](./dx12_play/img/4_Draw_3D_Model.png "Logo Title Text 1")
 
 Simple DirectX application. 
 
