@@ -1,6 +1,6 @@
 # 1 Triangle
 
-![alt text](./img/3_Constant_Buffer.png "Logo Title Text 1")
+![alt text](./dx12_play/img/3_Constant_Buffer.png "Logo Title Text 1")
 
 Simple DirectX application. 
 
