@@ -1,5 +1,5 @@
 #include "shared.h"
-#define ROOT_SIG "RootConstants(b1, num32bitconstants=3), CBV(b2), SRV(t0), SRV(t1), SRV(t2), SRV(t3), SRV(t4), DescriptorTable(SRV(t5)), StaticSampler(s0)"
+#define ROOT_SIG "RootConstants(b1, num32bitconstants=3), CBV(b2), SRV(t0), SRV(t1), SRV(t2), SRV(t3), SRV(t4), DescriptorTable(SRV(t5)), DescriptorTable(SRV(t6)), StaticSampler(s0)"
 
 struct Instance
 {

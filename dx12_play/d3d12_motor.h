@@ -39,8 +39,7 @@ private:
 
 	int frame = 0;
 
-	std::shared_ptr<Texture>m_texture;
-	std::shared_ptr<Texture>m_grill;
+	std::vector<std::shared_ptr<Texture>>m_textures;
 
 	static const UINT FrameCount = 2;
 

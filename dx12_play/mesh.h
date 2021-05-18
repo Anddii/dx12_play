@@ -56,7 +56,7 @@ public:
 	std::vector<XMVECTOR> m_position = std::vector<XMVECTOR>();
 	std::vector<XMVECTOR> m_rotation = std::vector<XMVECTOR>();
 	std::vector<XMVECTOR> m_scale = std::vector<XMVECTOR>();
-	int m_textureIndex = 0;
+	int m_textureIndex = 1;
 
 	XMVECTOR m_cameraPosition = XMVectorSet(0, 0, 5.f, 0);
 

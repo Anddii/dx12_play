@@ -97,7 +97,7 @@ void D3D12Motor::LoadPipeline(HWND hwnd) {
 
         // 5.2 Describe and create a shader resource view (SRV) heap for the texture(s).
         D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-        srvHeapDesc.NumDescriptors = 2;
+        srvHeapDesc.NumDescriptors = 3;
         srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
         srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         ThrowIfFailed(m_device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_srvHeap)));
@@ -217,32 +217,39 @@ void D3D12Motor::LoadAssets() {
 
     // 14. Create Texture (SRV)
     {
-        m_texture = std::shared_ptr<Texture>(new Texture("textures/image.dds", m_device, m_commandQueue));
-        m_grill = std::shared_ptr<Texture>(new Texture("textures/cubemap.dds", m_device, m_commandQueue));
+        m_textures.resize(3);
+        m_textures[0] = std::shared_ptr<Texture>(new Texture("textures/cubemap.dds", m_device, m_commandQueue));
+        m_textures[1] = std::shared_ptr<Texture>(new Texture("textures/plain.dds", m_device, m_commandQueue));
+        m_textures[2] = std::shared_ptr<Texture>(new Texture("textures/horse.dds", m_device, m_commandQueue));
         
-        D3D12_RESOURCE_BARRIER postCopyBarriers[2];
-        postCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(m_texture->m_resource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        postCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_grill->m_resource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        m_commandList->ResourceBarrier(ARRAYSIZE(postCopyBarriers), postCopyBarriers);
+        D3D12_RESOURCE_BARRIER postCopyBarriers[3];
+        postCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(m_textures[0]->m_resource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        postCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_textures[1]->m_resource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        postCopyBarriers[2] = CD3DX12_RESOURCE_BARRIER::Transition(m_textures[2]->m_resource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        m_commandList->ResourceBarrier(ARRAYSIZE(postCopyBarriers), postCopyBarriers); 
+        
         // Get pointer to the start of the heap.
         CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(m_srvHeap->GetCPUDescriptorHandleForHeapStart());
+
         // Describe and create a SRV for the texture.
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.Format = m_texture->m_resource->GetDesc().Format;
-        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Format = m_textures[0]->m_resource->GetDesc().Format;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
         srvDesc.Texture2D.MipLevels = 1;
-        m_device->CreateShaderResourceView(m_texture->m_resource.Get(), &srvDesc, hDescriptor);
+        m_device->CreateShaderResourceView(m_textures[0]->m_resource.Get(), &srvDesc, hDescriptor);
 
         // offset to next descriptor in heap
         hDescriptor.Offset(1, m_cbvSrvDescriptorSize);
 
-        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
-        srvDesc.TextureCube.MostDetailedMip = 0;
-        srvDesc.TextureCube.MipLevels = m_grill->m_resource->GetDesc().MipLevels;
-        srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
-        srvDesc.Format = m_grill->m_resource->GetDesc().Format;
-        m_device->CreateShaderResourceView(m_grill->m_resource.Get(), &srvDesc, hDescriptor);
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Format = m_textures[1]->m_resource->GetDesc().Format;
+        m_device->CreateShaderResourceView(m_textures[1]->m_resource.Get(), &srvDesc, hDescriptor);
+
+        hDescriptor.Offset(1, m_cbvSrvDescriptorSize);
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Format = m_textures[2]->m_resource->GetDesc().Format;
+        m_device->CreateShaderResourceView(m_textures[2]->m_resource.Get(), &srvDesc, hDescriptor);
     }
 
     // Transition the resource from its initial state to be used as a depth buffer.
@@ -383,7 +390,7 @@ void D3D12Motor::PopulateCommandList()
 
     // Record commands.
     const float clearColor[] = { 0.2f, 0.2f, 0.4f, 1.0f };
-    m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+    //m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     m_commandList->ClearDepthStencilView(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
     // Set PassVariables
@@ -410,8 +417,14 @@ void D3D12Motor::PopulateCommandList()
         m_commandList->SetGraphicsRootShaderResourceView(6, mesh.m_instanceBuffer->GetGPUVirtualAddress());
 
         CD3DX12_GPU_DESCRIPTOR_HANDLE tex(m_srvHeap->GetGPUDescriptorHandleForHeapStart());
+
+        tex.Offset(0, m_cbvSrvDescriptorSize); // 0 Is SkyBox
+        m_commandList->SetGraphicsRootDescriptorTable(8, tex);
+
         tex.Offset(mesh.m_textureIndex, m_cbvSrvDescriptorSize);
         m_commandList->SetGraphicsRootDescriptorTable(7, tex);
+
+        
 
         int packCount = min(MAX_VERTS / mesh.m_modelVertexCount, MAX_PRIMS / mesh.m_modelPrimitiveCount);
         float groupsPerInstance = float(mesh.m_modelMeshletCount - 1) + 1.0f / packCount;
