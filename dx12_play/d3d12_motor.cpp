@@ -169,10 +169,11 @@ void D3D12Motor::LoadAssets() {
         {
             byte* data;
             uint32_t size;
-        } meshShader, pixelShader;
+        } meshShader, pixelShader, skyShader;
 
         ReadDataFromFile(L"MS.cso", &meshShader.data, &meshShader.size);
         ReadDataFromFile(L"PS.cso", &pixelShader.data, &pixelShader.size);
+        ReadDataFromFile(L"SKY.cso", &skyShader.data, &skyShader.size);
 
         // Pull root signature from the precompiled mesh shader.
         ThrowIfFailed(m_device->CreateRootSignature(0, meshShader.data, meshShader.size, IID_PPV_ARGS(&m_rootSignature)));
@@ -193,23 +194,32 @@ void D3D12Motor::LoadAssets() {
         psoDesc.SampleMask = UINT_MAX;
         psoDesc.SampleDesc = DefaultSampleDesc();
 
-        auto psoStream = CD3DX12_PIPELINE_MESH_STATE_STREAM(psoDesc);
+        // PSO for transparent objects
+        D3DX12_MESH_SHADER_PIPELINE_STATE_DESC skyBoxPsoDesc = psoDesc;
+        skyBoxPsoDesc.PS = { skyShader.data, skyShader.size };
+        skyBoxPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
 
+        auto psoStream = CD3DX12_PIPELINE_MESH_STATE_STREAM(psoDesc);
         D3D12_PIPELINE_STATE_STREAM_DESC streamDesc;
         streamDesc.pPipelineStateSubobjectStream = &psoStream;
         streamDesc.SizeInBytes = sizeof(psoStream);
 
+        // Normal
         ThrowIfFailed(m_device->CreatePipelineState(&streamDesc, IID_PPV_ARGS(&m_pipelineState)));
+
+        //SkyBox
+        psoStream = CD3DX12_PIPELINE_MESH_STATE_STREAM(skyBoxPsoDesc);
+        ThrowIfFailed(m_device->CreatePipelineState(&streamDesc, IID_PPV_ARGS(&m_pipelineStateSky)));
     }
 
     // 11. Create the command list
-    ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get(), IID_PPV_ARGS(&m_commandList)));
+    ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_frameIndex].Get(),nullptr, IID_PPV_ARGS(&m_commandList)));
 
     // 14. Create Texture (SRV)
     {
-        m_texture = std::shared_ptr<Texture>(new Texture("textures/barrel.dds", m_device, m_commandQueue));
-        m_grill = std::shared_ptr<Texture>(new Texture("textures/image.dds", m_device, m_commandQueue));
-
+        m_texture = std::shared_ptr<Texture>(new Texture("textures/image.dds", m_device, m_commandQueue));
+        m_grill = std::shared_ptr<Texture>(new Texture("textures/cubemap.dds", m_device, m_commandQueue));
+        
         D3D12_RESOURCE_BARRIER postCopyBarriers[2];
         postCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(m_texture->m_resource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         postCopyBarriers[1] = CD3DX12_RESOURCE_BARRIER::Transition(m_grill->m_resource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -227,8 +237,11 @@ void D3D12Motor::LoadAssets() {
         // offset to next descriptor in heap
         hDescriptor.Offset(1, m_cbvSrvDescriptorSize);
 
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+        srvDesc.TextureCube.MostDetailedMip = 0;
+        srvDesc.TextureCube.MipLevels = m_grill->m_resource->GetDesc().MipLevels;
+        srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
         srvDesc.Format = m_grill->m_resource->GetDesc().Format;
-        srvDesc.Texture2D.MipLevels = m_grill->m_resource->GetDesc().MipLevels;
         m_device->CreateShaderResourceView(m_grill->m_resource.Get(), &srvDesc, hDescriptor);
     }
 
@@ -307,7 +320,7 @@ void D3D12Motor::OnUpdate()
     DirectX::XMFLOAT4X4 mView = {};
     DirectX::XMFLOAT4X4 mProj = {};
 
-    DirectX::XMMATRIX P = DirectX::XMMatrixPerspectiveFovLH(0.25f * DirectX::XM_PI, 1, 0.1f, 100.0f);
+    DirectX::XMMATRIX P = DirectX::XMMatrixPerspectiveFovLH(0.25f * DirectX::XM_PI, 1, 0.1f, 500.0f);
     XMStoreFloat4x4(&mProj, P);
 
     DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(m_cameraPosition, m_cameraPosition+m_cameraFront, m_cameraUp);
@@ -318,6 +331,10 @@ void D3D12Motor::OnUpdate()
 
    // m_commandList->SetGraphicsRoot32BitConstant(0, viewProj, 2);
     XMStoreFloat4x4(&m_passConstantBuffer->gViewProj, DirectX::XMMatrixTranspose(viewProj));
+
+    XMVECTOR v2 = m_cameraPosition;
+    XMFLOAT4 v2F;    //the float where we copy the v2 vector members
+    XMStoreFloat3(&m_passConstantBuffer->gViewPos, v2);   //the function used to copy
 
     frame++;
 }
@@ -347,7 +364,7 @@ void D3D12Motor::PopulateCommandList()
     // However, when ExecuteCommandList() is called on a particular command 
     // list, that command list can then be reset at any time and must be before 
     // re-recording.
-    ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get()));
+    ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), m_pipelineStateSky.Get()));
 
     // Set necessary state.
     m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
@@ -371,9 +388,15 @@ void D3D12Motor::PopulateCommandList()
 
     // Set PassVariables
     m_commandList->SetGraphicsRootConstantBufferView(1, m_passConstantUpload->GetGPUVirtualAddress());
-    
+
+    bool skyDraw = false;
     for each (Mesh mesh in mesh)
     {
+        if (skyDraw)
+            m_commandList->SetPipelineState(m_pipelineState.Get());
+
+        skyDraw = true;
+
         const auto toCopyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(mesh.m_instanceBuffer.Get(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_COPY_DEST);
         m_commandList->ResourceBarrier(1, &toCopyBarrier);
         m_commandList->CopyResource(mesh.m_instanceBuffer.Get(), mesh.m_instanceUpload.Get());
@@ -387,7 +410,7 @@ void D3D12Motor::PopulateCommandList()
         m_commandList->SetGraphicsRootShaderResourceView(6, mesh.m_instanceBuffer->GetGPUVirtualAddress());
 
         CD3DX12_GPU_DESCRIPTOR_HANDLE tex(m_srvHeap->GetGPUDescriptorHandleForHeapStart());
-        tex.Offset(1, m_cbvSrvDescriptorSize);
+        tex.Offset(mesh.m_textureIndex, m_cbvSrvDescriptorSize);
         m_commandList->SetGraphicsRootDescriptorTable(7, tex);
 
         int packCount = min(MAX_VERTS / mesh.m_modelVertexCount, MAX_PRIMS / mesh.m_modelPrimitiveCount);

@@ -18,6 +18,7 @@ cbuffer cb_object : register(b1)
 cbuffer cbPass : register(b2)
 {
 	float4x4 gViewProj;
+	float3 gViewPos;
 };
 
 struct Meshlet 
@@ -38,6 +39,7 @@ struct MSVertIn
 struct MSVert
 {
 	float4 pos : SV_POSITION;
+	float3 posL : POSITION;
 	float2 uv : TEXCOORD;
 	float3 normal : NORMAL0;
 	uint meshletIndex : COLOR0;
@@ -131,8 +133,10 @@ void MSMain(
 		pos = TransformPosition(pos, instanceIndex);
 
 		outVerts[groupThreadId].pos = pos;
+		outVerts[groupThreadId].posL = mul(Vertices[vertexIndex].pos.xyz, Instances[InstanceOffset + instanceIndex].gWorld);
 		outVerts[groupThreadId].uv = Vertices[vertexIndex].uv;
-		outVerts[groupThreadId].normal = Vertices[vertexIndex].normal;
+		outVerts[groupThreadId].normal = mul(Vertices[vertexIndex].normal, Instances[InstanceOffset + instanceIndex].gWorld);
+		//outVerts[groupThreadId].normal = Vertices[vertexIndex].normal;
 		outVerts[groupThreadId].meshletIndex = meshletIndex;
 	}
 

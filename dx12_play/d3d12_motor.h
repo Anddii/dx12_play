@@ -67,6 +67,7 @@ private:
 	ComPtr<ID3D12DescriptorHeap> m_srvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_cbvHeap;
 	ComPtr<ID3D12PipelineState> m_pipelineState;
+	ComPtr<ID3D12PipelineState> m_pipelineStateSky;
 	ComPtr<ID3D12GraphicsCommandList6> m_bundle;
 
 	UINT m_rtvDescriptorSize;
@@ -87,6 +88,7 @@ public:
 	struct PassConstantBuffer
 	{
 		XMFLOAT4X4 gViewProj = {};
+		XMFLOAT3 gViewPos;
 	};
 	PassConstantBuffer* m_passConstantBuffer = nullptr;
 	DirectX::XMVECTOR m_cameraPosition = DirectX::XMVectorSet(0, 0.0f, 10.0f, 1.0f);

@@ -7,65 +7,73 @@ void Game::Init(HWND window)
     m_mouse->SetWindow(window);
 
     {
+        Mesh newMesh("./models/cube.me", 1);
+        newMesh.InitMesh(m_motor->m_device.Get(), m_motor->m_commandQueue.Get(), m_motor->m_commandAllocators[m_motor->m_frameIndex].Get(), m_motor->m_commandList.Get());
+        m_motor->mesh.push_back(newMesh);
+        m_motor->mesh[0].SetPosition(0, XMVectorSet(0, 0, 0, 0));
+        m_motor->mesh[0].SetScale(0, XMVectorSet(100, 100, 100, 0));
+        m_motor->mesh[0].m_textureIndex = 1;
+    }
+    {
         Mesh newMesh("./models/plane.me", 1);
         newMesh.InitMesh(m_motor->m_device.Get(), m_motor->m_commandQueue.Get(), m_motor->m_commandAllocators[m_motor->m_frameIndex].Get(), m_motor->m_commandList.Get());
         m_motor->mesh.push_back(newMesh);
-        m_motor->mesh[0].SetPosition(0, XMVectorSet(0, -1, 0, 0));
-        m_motor->mesh[0].SetScale(0, XMVectorSet(20, 1, 20, 0));
+        m_motor->mesh[1].SetPosition(0, XMVectorSet(0, -1, 0, 0));
+        m_motor->mesh[1].SetScale(0, XMVectorSet(20, 1, 20, 0));
     }
     {
         Mesh newMesh("./models/horse.fbx.me", 3);
         newMesh.InitMesh(m_motor->m_device.Get(), m_motor->m_commandQueue.Get(), m_motor->m_commandAllocators[m_motor->m_frameIndex].Get(), m_motor->m_commandList.Get());
         m_motor->mesh.push_back(newMesh);
         
-        m_motor->mesh[1].SetScale(0, XMVectorSet(0.6f, 0.6f, 0.6f, 0.0f));
-        m_motor->mesh[1].SetPosition(0, XMVectorSet(0, 7.7f, 0, 0));
+        m_motor->mesh[2].SetScale(0, XMVectorSet(0.6f, 0.6f, 0.6f, 0.0f));
+        m_motor->mesh[2].SetPosition(0, XMVectorSet(0, 7.7f, 0, 0));
 
-        m_motor->mesh[1].SetRotation(1, XMVectorSet(0.0f, XMConvertToRadians(90), 0, 0));
-        m_motor->mesh[1].SetPosition(1, XMVectorSet(15, 7.7f, 10, 0));
+        m_motor->mesh[2].SetRotation(1, XMVectorSet(0.0f, XMConvertToRadians(90), 0, 0));
+        m_motor->mesh[2].SetPosition(1, XMVectorSet(15, 7.7f, 10, 0));
 
-        m_motor->mesh[1].SetRotation(2, XMVectorSet(XMConvertToRadians(90), 0, 0, 0));
-        m_motor->mesh[1].SetPosition(2, XMVectorSet(0, 1.5f, -15, 0));
+        m_motor->mesh[2].SetRotation(2, XMVectorSet(XMConvertToRadians(90), 0, 0, 0));
+        m_motor->mesh[2].SetPosition(2, XMVectorSet(0, 1.5f, -15, 0));
     }
     {
         Mesh newMesh("./models/pillar.me", 10);
         newMesh.InitMesh(m_motor->m_device.Get(), m_motor->m_commandQueue.Get(), m_motor->m_commandAllocators[m_motor->m_frameIndex].Get(), m_motor->m_commandList.Get());
         m_motor->mesh.push_back(newMesh);
 
-        m_motor->mesh[2].SetPosition(0, XMVectorSet(-5, -1, 0, 0));
-        m_motor->mesh[2].SetPosition(1, XMVectorSet(5, -1, 0, 0));
+        m_motor->mesh[3].SetPosition(0, XMVectorSet(-5, -1, 0, 0));
+        m_motor->mesh[3].SetPosition(1, XMVectorSet(5, -1, 0, 0));
 
-        m_motor->mesh[2].SetPosition(2, XMVectorSet(-5, -1, -5, 0));
-        m_motor->mesh[2].SetPosition(3, XMVectorSet(5, -1, -5, 0));
+        m_motor->mesh[3].SetPosition(2, XMVectorSet(-5, -1, -5, 0));
+        m_motor->mesh[3].SetPosition(3, XMVectorSet(5, -1, -5, 0));
 
-        m_motor->mesh[2].SetPosition(4, XMVectorSet(-5, -1, 5, 0));
-        m_motor->mesh[2].SetPosition(5, XMVectorSet(5, -1, 5, 0));
+        m_motor->mesh[3].SetPosition(4, XMVectorSet(-5, -1, 5, 0));
+        m_motor->mesh[3].SetPosition(5, XMVectorSet(5, -1, 5, 0));
 
-        m_motor->mesh[2].SetPosition(6, XMVectorSet(-5, -1, 10, 0));
-        m_motor->mesh[2].SetPosition(7, XMVectorSet(5, -1, 10, 0));
+        m_motor->mesh[3].SetPosition(6, XMVectorSet(-5, -1, 10, 0));
+        m_motor->mesh[3].SetPosition(7, XMVectorSet(5, -1, 10, 0));
 
-        m_motor->mesh[2].SetPosition(8, XMVectorSet(-5, -1, -10, 0));
-        m_motor->mesh[2].SetPosition(9, XMVectorSet(5, -1, -10, 0));
+        m_motor->mesh[3].SetPosition(8, XMVectorSet(-5, -1, -10, 0));
+        m_motor->mesh[3].SetPosition(9, XMVectorSet(5, -1, -10, 0));
     }
     {
         Mesh newMesh("./models/sphere.me", 10);
         newMesh.InitMesh(m_motor->m_device.Get(), m_motor->m_commandQueue.Get(), m_motor->m_commandAllocators[m_motor->m_frameIndex].Get(), m_motor->m_commandList.Get());
         m_motor->mesh.push_back(newMesh);
 
-        m_motor->mesh[3].SetPosition(0, XMVectorSet(-5, 5, 0, 0));
-        m_motor->mesh[3].SetPosition(1, XMVectorSet(5, 5, 0, 0));
+        m_motor->mesh[4].SetPosition(0, XMVectorSet(-5, 5, 0, 0));
+        m_motor->mesh[4].SetPosition(1, XMVectorSet(5, 5, 0, 0));
 
-        m_motor->mesh[3].SetPosition(2, XMVectorSet(-5, 5, -5, 0));
-        m_motor->mesh[3].SetPosition(3, XMVectorSet(5, 5, -5, 0));
+        m_motor->mesh[4].SetPosition(2, XMVectorSet(-5, 5, -5, 0));
+        m_motor->mesh[4].SetPosition(3, XMVectorSet(5, 5, -5, 0));
 
-        m_motor->mesh[3].SetPosition(4, XMVectorSet(-5, 5, 5, 0));
-        m_motor->mesh[3].SetPosition(5, XMVectorSet(5, 5, 5, 0));
+        m_motor->mesh[4].SetPosition(4, XMVectorSet(-5, 5, 5, 0));
+        m_motor->mesh[4].SetPosition(5, XMVectorSet(5, 5, 5, 0));
 
-        m_motor->mesh[3].SetPosition(6, XMVectorSet(-5, 5, 10, 0));
-        m_motor->mesh[3].SetPosition(7, XMVectorSet(5, 5, 10, 0));
+        m_motor->mesh[4].SetPosition(6, XMVectorSet(-5, 5, 10, 0));
+        m_motor->mesh[4].SetPosition(7, XMVectorSet(5, 5, 10, 0));
 
-        m_motor->mesh[3].SetPosition(8, XMVectorSet(-5, 5, -10, 0));
-        m_motor->mesh[3].SetPosition(9, XMVectorSet(5, 5, -10, 0));
+        m_motor->mesh[4].SetPosition(8, XMVectorSet(-5, 5, -10, 0));
+        m_motor->mesh[4].SetPosition(9, XMVectorSet(5, 5, -10, 0));
     }
     
 }
@@ -147,5 +155,10 @@ void Game::Update()
     direction.y = sin(XMConvertToRadians(m_motor->m_cameraPitch));
     direction.z = sin(XMConvertToRadians(m_motor->m_cameraYaw)) * cos(XMConvertToRadians(m_motor->m_cameraPitch));
     m_motor->m_cameraFront = XMVector4Normalize(XMVectorSet(direction.x, direction.y, direction.z, direction.w));
+
+    XMVECTOR v2 = m_motor->m_cameraPosition;
+    XMFLOAT4 v2F;    //the float where we copy the v2 vector members
+    XMStoreFloat4(&v2F, v2);   //the function used to copy
+    m_motor->mesh[0].SetPosition(0, XMVectorSet(v2F.x/100, v2F.y/100, v2F.z/100, 0));
 
 }
