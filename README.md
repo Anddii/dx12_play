@@ -1,6 +1,6 @@
-7 instancing
+9 Skybox
 
-![alt text](./dx12_play/img/7_Instancing.png "Image")
+![alt text](./dx12_play/img/9_Skybox.png "Image")
 
 | Control               | Action        |
 | -------------         |:-------------:|
