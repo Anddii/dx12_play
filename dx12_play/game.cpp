@@ -22,7 +22,7 @@ void Game::Init(HWND window)
         m_motor->mesh[1].SetScale(0, XMVectorSet(20, 1, 20, 0));
     }
     {
-        Mesh newMesh("./models/horse.fbx.me", 3);
+        Mesh newMesh("./models/horse.me", 3);
         newMesh.InitMesh(m_motor->m_device.Get(), m_motor->m_commandQueue.Get(), m_motor->m_commandAllocators[m_motor->m_frameIndex].Get(), m_motor->m_commandList.Get());
         m_motor->mesh.push_back(newMesh);
         
