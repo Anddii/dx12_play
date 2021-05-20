@@ -13,7 +13,8 @@ cbuffer cbPass : register(b2)
 struct PSInput
 {
     float4 pos : SV_POSITION;
-    float3 posL : POSITION;
+    float3 posL : POSITION0;
+    float3 posS : POSITION1;
     float2 uv : TEXCOORD0;
     float3 normal : NORMAL0;
     uint meshletIndex : COLOR0;
@@ -35,17 +36,17 @@ float4 PSMain(PSInput pIn) : SV_TARGET
     // Diffuse
     float3 dir = normalize(float3(0, 1.0f, 0.0f));
     float diff = max(dot(normal, dir), 0.0);
-    float3 diffuse = diff * 0.8;
+    float3 diffuse = diff * 0.1;
     diffuse *= float3(.9, .8, 1.0); // Light Color
 
     // Specular
-    float3 I = normalize(-gViewPos+pIn.posL);
+    float3 I = normalize(pIn.posL - gViewPos);
     float3 R = reflect(I, normal);
-    float3 specular = 0.5 * g_skyTexture.Sample(g_sampler, R).xyz;
+    float3 specular = 0.9 * g_skyTexture.Sample(g_sampler, R).xyz;
 
     // Ambient
     float4 aLightColor = float4(1,1,1,1);
-    float ambientStrength = 0.1;
+    float ambientStrength = 0.0;
     float3 ambient = ambientStrength * aLightColor;
 
     float3 result = (ambient + diffuse + specular) * textureColor;
