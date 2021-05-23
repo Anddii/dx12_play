@@ -27,8 +27,8 @@ void Game::Init(HWND window)
         m_motor->mesh.push_back(newMesh);
         
         m_motor->mesh[2].m_textureIndex = 2;
-        m_motor->mesh[2].SetScale(0, XMVectorSet(0.6f, 0.6f, 0.6f, 0.0f));
-        m_motor->mesh[2].SetPosition(0, XMVectorSet(6, 7.7f, 0, 0));
+        m_motor->mesh[2].SetScale(0, XMVectorSet(1.0f, 1.0f, 1.0f, 0.0f));
+        m_motor->mesh[2].SetPosition(0, XMVectorSet(0.0f, 0.0f, 0, 0));
 
         m_motor->mesh[2].SetRotation(1, XMVectorSet(0.0f, XMConvertToRadians(-90), 0, 0));
         m_motor->mesh[2].SetPosition(1, XMVectorSet(15, 7.7f, 10, 0));

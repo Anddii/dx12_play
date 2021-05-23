@@ -40,7 +40,6 @@ struct MSVert
 {
 	float4 pos : SV_POSITION;
 	float3 posL : POSITION0;
-	float3 posS : POSITION1;
 	float2 uv : TEXCOORD;
 	float3 normal : NORMAL0;
 	uint meshletIndex : COLOR0;
@@ -134,11 +133,9 @@ void MSMain(
 		pos = TransformPosition(pos, instanceIndex);
 
 		outVerts[groupThreadId].pos = pos;
-		outVerts[groupThreadId].posL = mul(Vertices[vertexIndex].pos.xyz + Instances[InstanceOffset + instanceIndex].gWorld[3].xyz, Instances[InstanceOffset + instanceIndex].gWorld);
-		outVerts[groupThreadId].posS = mul(Vertices[vertexIndex].pos.xyz, Instances[InstanceOffset + instanceIndex].gWorld);
+		outVerts[groupThreadId].posL = mul(Vertices[vertexIndex].pos.xyz, Instances[InstanceOffset + instanceIndex].gWorld);
 		outVerts[groupThreadId].uv = Vertices[vertexIndex].uv;
 		outVerts[groupThreadId].normal = mul(Vertices[vertexIndex].normal, Instances[InstanceOffset + instanceIndex].gWorld);
-		//outVerts[groupThreadId].normal = Vertices[vertexIndex].normal;
 		outVerts[groupThreadId].meshletIndex = meshletIndex;
 	}
 
