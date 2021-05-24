@@ -4,7 +4,6 @@
 struct Instance
 {
 	float4x4 gWorld;
-	float4x4 gViewProj;
 	float aspectRatio;
 };
 

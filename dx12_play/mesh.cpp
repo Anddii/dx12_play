@@ -181,7 +181,6 @@ void Mesh::RegenerateInstances(ID3D12Device* device) {
         m_scale[i] = XMVectorSet(1, 1, 1, 1);
 
         UpdateWorld(i);
-        UpdateViewProj(i);
         inst.gAspectRatio = 1378.00000 / 750.000000;  // HUOMHUOM HUOM TODO 
     }
 }
@@ -208,35 +207,6 @@ void Mesh::UpdateWorld(int instanceOffset) {
     auto& inst = m_instanceData[instanceOffset];
     XMMATRIX world = XMMatrixTranslationFromVector(m_position[instanceOffset]);
     XMStoreFloat4x4(&inst.gWorld, XMMatrixScalingFromVector(m_scale[instanceOffset])* XMMatrixTranspose(world)*XMMatrixRotationRollPitchYawFromVector(m_rotation[instanceOffset]));
-}
-
-void Mesh::SetCameraPosition(int instanceOffset, XMVECTOR position) {
-    auto& inst = m_instanceData[instanceOffset];
-    m_cameraPosition = position;
-    UpdateViewProj(instanceOffset);
-}
-
-void Mesh::UpdateViewProj(int instanceOffset) {
-    auto& inst = m_instanceData[instanceOffset];
-    // MOVE TO CAMERA? 
-    XMFLOAT4X4 mView = {};
-    XMFLOAT4X4 mProj = {};
-
-    XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * DirectX::XM_PI, 1, 0.1f, 100.0f);
-    XMStoreFloat4x4(&mProj, P);
-
-    XMFLOAT4 v2F;    //the float where we copy the v2 vector members
-    XMStoreFloat4(&v2F, m_cameraPosition);   //the function used to copy
-    XMVECTOR target = XMVectorSet(v2F.x, v2F.y, -v2F.z, 1.0f);
-    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
-    XMMATRIX view = XMMatrixLookAtLH(m_cameraPosition, target, up);
-    XMMATRIX proj = XMLoadFloat4x4(&mProj);
-
-    XMStoreFloat4x4(&mView, view);
-    XMMATRIX viewProj = XMMatrixMultiply(view, proj);
-
-    XMStoreFloat4x4(&inst.gViewProj, DirectX::XMMatrixTranspose(viewProj));
 }
 
 void Mesh::ThrowIfFailed(HRESULT hr) {

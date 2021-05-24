@@ -40,7 +40,6 @@ public:
 	void SetPosition(int instanceOffset, XMVECTOR position);
 	void SetRotation(int instanceOffset, XMVECTOR rotation);
 	void SetScale(int instanceOffset, XMVECTOR scale);
-	void SetCameraPosition(int instanceOffset, XMVECTOR position);
 
 	template <class Archive>
 	void serialize(Archive& ar)
@@ -65,14 +64,12 @@ private:
 	struct SceneConstantBuffer
 	{
 		XMFLOAT4X4 gWorld = {};
-		XMFLOAT4X4 gViewProj = {};
 		float gAspectRatio = 1;
 	};
 
 	SceneConstantBuffer* m_instanceData = nullptr;
 	
 	void UpdateWorld(int instanceOffset);
-	void UpdateViewProj(int instanceOffset);
 	void ThrowIfFailed(HRESULT hr);
 
 };

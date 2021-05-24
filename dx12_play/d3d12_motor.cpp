@@ -390,7 +390,7 @@ void D3D12Motor::PopulateCommandList()
 
     // Record commands.
     const float clearColor[] = { 0.2f, 0.2f, 0.4f, 1.0f };
-    //m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+    m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     m_commandList->ClearDepthStencilView(m_dsvHeap->GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
     // Set PassVariables
