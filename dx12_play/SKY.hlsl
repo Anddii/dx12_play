@@ -10,7 +10,8 @@ cbuffer cbPass : register(b2)
 struct PSInput
 {
     float4 pos : SV_POSITION;
-    float3 posL : POSITION0;
+    float3 posW : POSITION0;
+    float3 posS : POSITION1;
     float2 uv : TEXCOORD;
     float3 normal : NORMAL0;
     uint meshletIndex : COLOR0;
@@ -18,6 +19,6 @@ struct PSInput
 
 float4 SkyMain(PSInput pIn) : SV_TARGET
 {
-    float4 textureColor = g_texture.Sample(g_sampler, pIn.posL);
+    float4 textureColor = g_texture.Sample(g_sampler, pIn.posS);
     return float4(textureColor.xyz, 1);
 }

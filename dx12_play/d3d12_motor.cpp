@@ -219,8 +219,8 @@ void D3D12Motor::LoadAssets() {
     {
         m_textures.resize(3);
         m_textures[0] = std::shared_ptr<Texture>(new Texture("textures/cubemap.dds", m_device, m_commandQueue));
-        m_textures[1] = std::shared_ptr<Texture>(new Texture("textures/plain.dds", m_device, m_commandQueue));
-        m_textures[2] = std::shared_ptr<Texture>(new Texture("textures/horse.dds", m_device, m_commandQueue));
+        m_textures[1] = std::shared_ptr<Texture>(new Texture("textures/Tiles015_8K_Color.dds", m_device, m_commandQueue));
+        m_textures[2] = std::shared_ptr<Texture>(new Texture("textures/Tiles015_8K_Normal.dds", m_device, m_commandQueue));
         
         D3D12_RESOURCE_BARRIER postCopyBarriers[3];
         postCopyBarriers[0] = CD3DX12_RESOURCE_BARRIER::Transition(m_textures[0]->m_resource.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
