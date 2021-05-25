@@ -1,20 +1,9 @@
 TextureCube g_texture : register(t5);
 SamplerState g_sampler : register(s0);
 
-cbuffer cbPass : register(b2)
-{
-    float4x4 gViewProj;
-    float3 gViewPos;
-};
-
 struct PSInput
 {
-    float4 pos : SV_POSITION;
-    float3 posW : POSITION0;
     float3 posS : POSITION1;
-    float2 uv : TEXCOORD;
-    float3 normal : NORMAL0;
-    uint meshletIndex : COLOR0;
 };
 
 float4 SkyMain(PSInput pIn) : SV_TARGET

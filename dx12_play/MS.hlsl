@@ -1,5 +1,5 @@
 #include "shared.h"
-#define ROOT_SIG "RootConstants(b1, num32bitconstants=3), CBV(b2), SRV(t0), SRV(t1), SRV(t2), SRV(t3), SRV(t4), DescriptorTable(SRV(t5)), DescriptorTable(SRV(t6)), StaticSampler(s0)"
+#define ROOT_SIG "RootConstants(b1, num32bitconstants=3), CBV(b2), SRV(t0), SRV(t1), SRV(t2), SRV(t3), SRV(t4), DescriptorTable(SRV(t5)), DescriptorTable(SRV(t6)), DescriptorTable(SRV(t7)), StaticSampler(s0)"
 
 struct Instance
 {
@@ -33,6 +33,7 @@ struct MSVertIn
 	float3 pos;
 	float3 normal;
 	float2 uv;
+	float3 tangent;
 };
 
 struct MSVert
@@ -42,6 +43,7 @@ struct MSVert
 	float3 posS : POSITION1;
 	float2 uv : TEXCOORD;
 	float3 normal : NORMAL0;
+	float3 tangentW : TANGENT;
 	uint meshletIndex : COLOR0;
 };
 
@@ -137,6 +139,7 @@ void MSMain(
 		outVerts[groupThreadId].posS = mul(Vertices[vertexIndex].pos.xyz, Instances[InstanceOffset + instanceIndex].gWorld);
 		outVerts[groupThreadId].uv = Vertices[vertexIndex].uv;
 		outVerts[groupThreadId].normal = mul(Vertices[vertexIndex].normal, Instances[InstanceOffset + instanceIndex].gWorld);
+		outVerts[groupThreadId].tangentW = mul(Vertices[vertexIndex].tangent, (float3x3)Instances[InstanceOffset + instanceIndex].gWorld);
 		outVerts[groupThreadId].meshletIndex = meshletIndex;
 	}
 
