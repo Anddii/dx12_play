@@ -31,6 +31,7 @@
 // 14. Create Texture (SRV)
 // 15. Create the constant buffer.
 // 16. Create synchronization objects and wait until assets have been uploaded to the GPU
+inline uint32_t DivRoundUp(uint32_t num, uint32_t den) { return (num + den - 1) / den; }
 
 void D3D12Motor::LoadPipeline(HWND hwnd) {
 #if defined(_DEBUG)
@@ -169,8 +170,9 @@ void D3D12Motor::LoadAssets() {
         {
             byte* data;
             uint32_t size;
-        } meshShader, pixelShader, skyShader;
+        } amplificationShader, meshShader, pixelShader, skyShader;
 
+        ReadDataFromFile(L"AS.cso", &amplificationShader.data, &amplificationShader.size);
         ReadDataFromFile(L"MS.cso", &meshShader.data, &meshShader.size);
         ReadDataFromFile(L"PS.cso", &pixelShader.data, &pixelShader.size);
         ReadDataFromFile(L"SKY.cso", &skyShader.data, &skyShader.size);
@@ -180,6 +182,7 @@ void D3D12Motor::LoadAssets() {
 
         D3DX12_MESH_SHADER_PIPELINE_STATE_DESC psoDesc = {};
         psoDesc.pRootSignature = m_rootSignature.Get();
+        psoDesc.AS = { amplificationShader.data, amplificationShader.size };
         psoDesc.MS = { meshShader.data, meshShader.size };
         psoDesc.PS = { pixelShader.data, pixelShader.size };
         psoDesc.NumRenderTargets = 2;
@@ -427,8 +430,6 @@ void D3D12Motor::PopulateCommandList()
         tex.Offset(1, m_cbvSrvDescriptorSize);
         m_commandList->SetGraphicsRootDescriptorTable(9, tex);
 
-        
-
         int packCount = min(MAX_VERTS / mesh.m_modelVertexCount, MAX_PRIMS / mesh.m_modelPrimitiveCount);
         float groupsPerInstance = float(mesh.m_modelMeshletCount - 1) + 1.0f / packCount;
 
@@ -445,7 +446,7 @@ void D3D12Motor::PopulateCommandList()
             m_commandList->SetGraphicsRoot32BitConstant(0, mesh.m_modelMeshletCount, 2);
 
             uint32_t groupCount = static_cast<uint32_t>(ceilf(groupsPerInstance * instanceCount));
-            m_commandList->DispatchMesh(groupCount, 1, 1);
+            m_commandList->DispatchMesh(instanceCount, 1, 1);
         }
     }
 

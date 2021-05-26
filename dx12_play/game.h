@@ -45,7 +45,7 @@ public:
 	Game(std::shared_ptr<D3D12Motor> motor) { this->m_motor = motor; };
 	~Game() {};
 	void Init(HWND window);
-	void Update();
+	void Update(HWND window);
 
 	std::unique_ptr<Mesh> mesh1;
 };

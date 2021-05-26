@@ -122,7 +122,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_PAINT:
         if (motor)
         {
-            game->Update();
+            game->Update(hwnd);
             motor->OnUpdate();
             motor->OnRender();
         }

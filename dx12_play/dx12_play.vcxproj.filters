@@ -81,5 +81,8 @@
     <FxCompile Include="SKY.hlsl">
       <Filter>Resource Files</Filter>
     </FxCompile>
+    <FxCompile Include="AS.hlsl">
+      <Filter>Resource Files</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>
